@@ -1,6 +1,8 @@
 from __future__ import annotations
-from pydantic import BaseModel, SecretStr
+
 from typing import List, Literal
+
+from pydantic import BaseModel, SecretStr
 
 
 class TodoistConfig(BaseModel):
