@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import List, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Role(str, Enum):
@@ -18,11 +18,10 @@ class Message(BaseModel):
 
 
 class ClassificationRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     model: str
     input: List[Message] = Field(alias="messages")
-
-    class Config:
-        populate_by_name = True
 
 
 class ClassificationResponse(BaseModel):
@@ -54,8 +53,8 @@ Output strict JSON: {quadrant, urgent, important, reason}.
         return self
 
     def with_task_context(
-        self, task, profile: dict, near_term: dict
-    ) -> EisenhowerCommandBuilder:
+        self, task, profile: dict, near_term: dict, *, force_json: bool = False
+    ) -> "EisenhowerCommandBuilder":
         """Add task classification context to the command."""
         user_content = (
             "Classify this Todoist task into Q1..Q4.\n"
@@ -64,6 +63,8 @@ Output strict JSON: {quadrant, urgent, important, reason}.
             'Return JSON: {"quadrant":"Q1|Q2|Q3|Q4","urgent":true|false,'
             '"important":true|false,"reason":"<short>"}'
         )
+        if force_json:
+            user_content += "\nReturn strict JSON only."
         self._messages.append(Message(role=Role.USER, content=user_content))
         return self
 

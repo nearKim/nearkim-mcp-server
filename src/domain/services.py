@@ -10,36 +10,33 @@ class ClassifierService:
         self.profile_repo = profile_repo
         self.calendar_repo = calendar_repo
 
-    def classify(self, task: Task) -> ClassificationDecision:
+    def classify(
+        self, task: Task, *, force_json: bool = False
+    ) -> ClassificationDecision:
         profile = self.profile_repo.load_compact_profile() if self.profile_repo else {}
         near_term = (
             self.calendar_repo.next_window_summary(days=7) if self.calendar_repo else {}
         )
-        return self.llm.classify_task(task, profile, near_term)
+        return self.llm.classify_task(task, profile, near_term, force_json=force_json)
 
 
 class ProjectCache(Protocol):
-    def get_name(self, project_id: str) -> Optional[str]:
-        ...
+    def get_name(self, project_id: str) -> Optional[str]: ...
 
 
 class LabelCache(Protocol):
-    def get_id(self, label_name: str) -> Optional[str]:
-        ...
+    def get_id(self, label_name: str) -> Optional[str]: ...
 
 
 class IgnoreConfig(Protocol):
     @property
-    def project_ids(self) -> set[str]:
-        ...
+    def project_ids(self) -> set[str]: ...
 
     @property
-    def projects_by_name(self) -> set[str]:
-        ...
+    def projects_by_name(self) -> set[str]: ...
 
     @property
-    def labels_by_name(self) -> set[str]:
-        ...
+    def labels_by_name(self) -> set[str]: ...
 
 
 class TaskIgnoreService:

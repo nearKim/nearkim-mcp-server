@@ -8,6 +8,7 @@ dependencies = [
     "databases>=0.9.0",
     "fastapi>=0.116.1",
     "openai>=1.107.3",
+    "pydantic>=2.9.2",
     "pydantic-settings>=2.10.1",
     "todoist-api-python>=3.1.0",
 ]
@@ -17,6 +18,7 @@ dev = [
     "black>=25.1.0",
     "isort>=6.0.1",
     "pytest>=8.4.2",
+    "pytest-asyncio>=0.23.8",
 ]
 
 # Black configuration
