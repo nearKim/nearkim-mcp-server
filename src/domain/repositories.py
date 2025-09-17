@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 from .entities import Task
-from .models import DecisionRecord
+from .models import ClassificationDecision, DecisionRecord, Quadrant
 
 
 class TasksRepo(ABC):
@@ -23,4 +24,16 @@ class DecisionRepository(ABC):
     async def delete(self, todoist_id: str) -> None: ...
 
     @abstractmethod
-    async def get(self, todoist_id: str) -> DecisionRecord | None: ...
+    async def get(self, todoist_id: str) -> Optional[DecisionRecord]: ...
+    
+    @abstractmethod
+    async def save_decision(self, task_id: str, decision: ClassificationDecision) -> None: ...
+    
+    @abstractmethod
+    async def get_quadrant_breakdown(self) -> Dict[str, Any]: ...
+    
+    @abstractmethod
+    async def get_recent_decisions(self, limit: int = 10) -> List[DecisionRecord]: ...
+    
+    @abstractmethod
+    async def get_by_quadrant(self, quadrant: Quadrant) -> List[DecisionRecord]: ...

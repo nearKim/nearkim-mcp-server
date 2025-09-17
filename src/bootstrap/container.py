@@ -9,7 +9,7 @@ from typing import Optional
 from google.oauth2.credentials import Credentials
 
 from src.adapters.google.calendar import CalendarService, GoogleCalendarAdapter
-from src.adapters.todoist.adapter import TodoistAdapter
+from src.adapters.todoist_simple import TodoistAdapter
 from src.application.service.todoist import TodoistService
 from src.application.service.webhook import TodoistWebhookService
 from src.bootstrap.config import Config

@@ -178,3 +178,6 @@ class TodoistAdapter:
     
     async def fetch_projects(self) -> list[ProjectDTO]:
         return await self.api_adapter.fetch_projects()
+    
+    async def update_task(self, task_id: str, **params) -> None:
+        return await self.api_adapter.update_task(task_id, **params)
