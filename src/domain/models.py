@@ -1,7 +1,17 @@
-from dataclasses import dataclass
-from typing import Literal
+import typing
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
 
-Quadrant = Literal["Q1", "Q2", "Q3", "Q4"]
+from pydantic.dataclasses import dataclass
+
+Quadrant = typing.Literal["Q1", "Q2", "Q3", "Q4"]
+
+
+class DecisionStatus(Enum):
+    SUCCESS = "success"
+    FALLBACK = "fallback"
+    ERROR = "error"
 
 
 @dataclass
@@ -10,3 +20,64 @@ class ClassificationDecision:
     urgent: bool
     important: bool
     reason: str
+    status: DecisionStatus = DecisionStatus.SUCCESS
+    error_detail: Optional[str] = None
+    
+    @property
+    def is_fallback(self) -> bool:
+        return self.status == DecisionStatus.FALLBACK
+    
+    @classmethod
+    def create_fallback(
+        cls, 
+        error: Exception,
+        default_quadrant: Quadrant = "Q4"
+    ) -> "ClassificationDecision":
+        error_type = type(error).__name__
+        error_msg = str(error)
+        
+        return cls(
+            quadrant=default_quadrant,
+            urgent=False,
+            important=False,
+            reason=f"Unable to classify task. Applied default priority.",
+            status=DecisionStatus.FALLBACK,
+            error_detail=f"{error_type}: {error_msg}"
+        )
+
+
+@dataclass
+class DecisionRecord:
+    # Fields without defaults first
+    quadrant: Quadrant
+    urgent: bool
+    important: bool
+    reason: str
+    todoist_id: str
+    applied_mode: typing.Literal["labels", "priorities"]
+    updated_at: datetime
+    # Fields with defaults last
+    status: DecisionStatus = DecisionStatus.SUCCESS
+    error_detail: Optional[str] = None
+
+    @classmethod
+    def from_decision(
+        cls,
+        todoist_id: str,
+        decision: ClassificationDecision,
+        applied_mode: typing.Literal["labels", "priorities"],
+        updated_at: datetime | None = None,
+    ) -> "DecisionRecord":
+        return cls(
+            # Parent class fields
+            quadrant=decision.quadrant,
+            urgent=decision.urgent,
+            important=decision.important,
+            reason=decision.reason,
+            status=decision.status,
+            error_detail=decision.error_detail,
+            # Child class fields  
+            todoist_id=todoist_id,
+            applied_mode=applied_mode,
+            updated_at=updated_at or datetime.now(timezone.utc),
+        )

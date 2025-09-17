@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from openai import OpenAI
 
+from pydantic import ValidationError
+
 from src.adapters.openai.dto import ClassificationResponse, EisenhowerCommandBuilder
 from src.bootstrap.settings.schemas import OpenAIConfig
 from src.domain.models import ClassificationDecision
+from src.domain.exceptions import LLMResponseFormatError
 
 
 class OpenAIAdapter:
@@ -15,10 +18,12 @@ class OpenAIAdapter:
         self.model = cfg.model
         self.timeout = cfg.timeout_seconds
 
-    def classify_task(self, task, profile, near_term) -> ClassificationDecision:
+    def classify_task(
+        self, task, profile, near_term, *, force_json: bool = False
+    ) -> ClassificationDecision:
         request = (
             EisenhowerCommandBuilder(self.model)
-            .with_task_context(task, profile, near_term)
+            .with_task_context(task, profile, near_term, force_json=force_json)
             .build()
         )
 
@@ -26,7 +31,12 @@ class OpenAIAdapter:
             model=request.model, input=[msg.model_dump() for msg in request.input]
         )
 
-        response_dto = ClassificationResponse.model_validate_json(rsp.output_text)
+        try:
+            response_dto = ClassificationResponse.model_validate_json(rsp.output_text)
+        except ValidationError as exc:
+            raise LLMResponseFormatError(
+                "LLM did not return valid classification JSON"
+            ) from exc
 
         return ClassificationDecision(
             quadrant=response_dto.quadrant,

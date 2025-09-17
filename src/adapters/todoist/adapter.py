@@ -12,12 +12,14 @@ from src.application.service.todoist import (
     LabelService,
     TaskIgnoreService,
     TaskService,
+    TodoistAPIBase,
 )
+from src.domain.services.task_ignore import IgnoreRules
 from src.bootstrap.settings.schemas import TodoistConfig
 from src.domain.models import ClassificationDecision
 
 
-class TodoistAPIAdapter:
+class TodoistAPIAdapter(TodoistAPIBase):
     def __init__(self, api: TodoistAPIAsync):
         self.api = api
 
@@ -96,12 +98,15 @@ class TodoistAdapter:
         self.classification_service = ClassificationService(
             self.task_service, self.label_service
         )
+        ignore_rules = IgnoreRules(
+            project_ids=set(cfg.ignore.project_ids),
+            project_names=set(cfg.ignore.projects_by_name),
+            label_names=set(cfg.ignore.labels_by_name),
+        )
         self.ignore_service = TaskIgnoreService(
             self.cache,
             self.api_adapter,
-            set(cfg.ignore.project_ids),
-            set(cfg.ignore.projects_by_name),
-            set(cfg.ignore.labels_by_name),
+            ignore_rules,
         )
 
     async def __aenter__(self):

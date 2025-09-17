@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Literal
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 
 class TodoistConfig(BaseModel):
@@ -10,11 +10,11 @@ class TodoistConfig(BaseModel):
         output: Literal["labels", "priorities"] = "labels"
         label_urgent: str = "@urgent"
         label_important: str = "@important"
-        auto_create_labels: bool = True
+        autocreate_labels: bool = Field(True, alias="auto_create_labels")
 
     class IgnoreRulesConfig(BaseModel):
-        projects_by_name: List[str] = ["Shopping"]
         project_ids: List[str] = []
+        projects_by_name: List[str] = ["Shopping"]
         labels_by_name: List[str] = ["no-classify"]
 
     token: SecretStr | None = None
