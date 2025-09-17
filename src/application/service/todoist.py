@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from src.adapters.todoist.adapter import TodoistAdapter
 from src.domain.entities import Task
-from src.domain.models import ClassificationDecision
+from src.domain.models import ClassificationDecision, DecisionRecord
 from src.domain.repositories import DecisionRepository
 from src.domain.services.classification import ClassifierService
 from src.domain.services.task_ignore import TaskIgnoreService
@@ -60,10 +60,12 @@ class TodoistService:
                 
                 await self.adapter.apply_eisenhower(task.todoist_id, decision)
                 
-                await self.decision_repository.save_decision(
-                    task_id=task.todoist_id,
-                    decision=decision
+                record = DecisionRecord.from_decision(
+                    todoist_id=task.todoist_id,
+                    decision=decision,
+                    applied_mode="labels"
                 )
+                await self.decision_repository.save(record)
                 
                 if decision.quadrant == "Q2" and self.calendar_service:
                     scheduled = await self._schedule_q2_task(task, decision)
@@ -94,10 +96,12 @@ class TodoistService:
         
         await self.adapter.apply_eisenhower(task_id, decision)
         
-        await self.decision_repository.save_decision(
-            task_id=task_id,
-            decision=decision
+        record = DecisionRecord.from_decision(
+            todoist_id=task_id,
+            decision=decision,
+            applied_mode="labels"
         )
+        await self.decision_repository.save(record)
         
         if decision.quadrant == "Q2" and self.calendar_service:
             await self._schedule_q2_task(task, decision)
