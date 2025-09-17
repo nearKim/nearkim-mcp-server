@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from src.domain.entities import Task
@@ -15,3 +15,6 @@ class TodoistPort(ABC):
 
     @abstractmethod
     async def should_ignore_task(self, task: "Task") -> bool: ...
+    
+    @abstractmethod
+    async def fetch_tasks(self, project_id: Optional[str] = None) -> List["Task"]: ...

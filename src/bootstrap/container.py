@@ -10,7 +10,7 @@ from google.oauth2.credentials import Credentials
 
 from src.adapters.google.calendar import CalendarService, GoogleCalendarAdapter
 from src.adapters.todoist_simple import TodoistAdapter
-from src.application.service.todoist import TodoistService
+from src.application.service.todoist_service import TodoistService
 from src.application.service.webhook import TodoistWebhookService
 from src.bootstrap.config import Config
 from src.domain.services.classification import ClassifierService
@@ -46,7 +46,8 @@ class Container:
     def todoist_adapter(self) -> TodoistAdapter:
         if self._todoist_adapter is None:
             self._todoist_adapter = TodoistAdapter(
-                api_key=self.config.todoist.api_key
+                api_key=self.config.todoist.api_key,
+                ignore_service=self.ignore_service
             )
         return self._todoist_adapter
     

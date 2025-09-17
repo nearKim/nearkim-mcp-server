@@ -4,12 +4,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from src.adapters.todoist.adapter import TodoistAdapter
 from src.domain.entities import Task
 from src.domain.models import ClassificationDecision, DecisionRecord
 from src.domain.repositories import DecisionRepository
 from src.domain.services.classification import ClassifierService
 from src.domain.services.task_ignore import TaskIgnoreService
+from src.ports.todoist import TodoistPort
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class TodoistService:
     
     def __init__(
         self,
-        adapter: TodoistAdapter,
+        adapter: TodoistPort,
         classifier: ClassifierService,
         ignore_service: TaskIgnoreService,
         decision_repository: DecisionRepository,
@@ -41,20 +41,11 @@ class TodoistService:
             "q2_scheduled": 0
         }
         
-        for task_data in tasks:
+        for task in tasks:
             try:
-                if self.ignore_service.should_ignore(task_data):
+                if await self.adapter.should_ignore_task(task):
                     results["ignored"] += 1
                     continue
-                
-                task = Task(
-                    todoist_id=task_data["id"],
-                    content=task_data.get("content", ""),
-                    project_id=task_data.get("project_id"),
-                    labels=task_data.get("labels", []),
-                    priority=task_data.get("priority", 1),
-                    due=task_data.get("due")
-                )
                 
                 decision = await self.classifier.classify(task)
                 
@@ -75,22 +66,13 @@ class TodoistService:
                 results["classified"] += 1
                 
             except Exception as e:
-                logger.error(f"Failed to classify task {task_data.get('id')}: {e}")
+                logger.error(f"Failed to classify task {task.todoist_id}: {e}")
                 results["failed"] += 1
         
         return results
     
     async def reclassify_task(self, task_id: str) -> ClassificationDecision:
-        task_dto = await self.adapter.get_task(task_id)
-        
-        task = Task(
-            todoist_id=task_dto.id,
-            content=task_dto.content,
-            project_id=task_dto.project_id,
-            labels=task_dto.labels,
-            priority=task_dto.priority,
-            due=task_dto.due
-        )
+        task = await self.adapter.get_task(task_id)
         
         decision = await self.classifier.classify(task, force_json=True)
         
@@ -114,14 +96,14 @@ class TodoistService:
         tasks = []
         for decision in decisions:
             try:
-                task_dto = await self.adapter.get_task(decision.todoist_id)
+                task = await self.adapter.get_task(decision.todoist_id)
                 tasks.append({
-                    "id": task_dto.id,
-                    "content": task_dto.content,
-                    "project_id": task_dto.project_id,
-                    "labels": task_dto.labels,
-                    "priority": task_dto.priority,
-                    "due": task_dto.due,
+                    "id": task.todoist_id,
+                    "content": task.content,
+                    "project_id": task.project_id,
+                    "labels": task.labels,
+                    "priority": task.priority,
+                    "due": task.due,
                     "quadrant": decision.quadrant,
                     "reason": decision.reason
                 })

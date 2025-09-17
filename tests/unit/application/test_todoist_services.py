@@ -18,8 +18,8 @@ from src.application.service.todoist import (
     LabelService,
     TaskIgnoreService,
     TaskService,
-    TodoistService,
 )
+from src.application.service.todoist_service import TodoistService as TodoistBatchService
 from src.domain.models import ClassificationDecision, DecisionStatus
 from src.domain.services.task_ignore import IgnoreRules
 
@@ -366,7 +366,7 @@ class TestTaskIgnoreService:
 
 
 class TestTodoistService:
-    """Test TodoistService batch operations."""
+    """Test TodoistBatchService batch operations."""
     
     @pytest.mark.asyncio
     async def test_classify_all_tasks_success(self):
@@ -431,7 +431,7 @@ class TestTodoistService:
             "end": "2024-01-15T11:30:00Z"
         }
         
-        service = TodoistService(
+        service = TodoistBatchService(
             adapter=mock_adapter,
             classifier=mock_classifier,
             ignore_service=mock_ignore_service,
@@ -495,7 +495,7 @@ class TestTodoistService:
         
         mock_classifier.classify = async_classify_with_error
         
-        service = TodoistService(
+        service = TodoistBatchService(
             adapter=mock_adapter,
             classifier=mock_classifier,
             ignore_service=mock_ignore_service,

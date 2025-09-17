@@ -9,7 +9,6 @@ from mcp import Resource, Tool, server
 from mcp.types import TextContent
 
 from src.bootstrap.container import Container
-from src.domain.entities import Task
 
 logger = logging.getLogger(__name__)
 
@@ -159,16 +158,7 @@ class EisenhowerMCPServer:
     async def _force_reclassify(self, task_id: str) -> Dict[str, Any]:
         try:
             todoist = self.container.todoist_adapter
-            task_dto = await todoist.get_task(task_id)
-            
-            task = Task(
-                todoist_id=task_dto.id,
-                content=task_dto.content,
-                project_id=task_dto.project_id,
-                labels=task_dto.labels,
-                priority=task_dto.priority,
-                due=task_dto.due
-            )
+            task = await todoist.get_task(task_id)
             
             classifier = self.container.classifier_service
             decision = await classifier.classify(task, force_json=True)
