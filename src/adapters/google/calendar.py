@@ -12,6 +12,7 @@ from googleapiclient.errors import HttpError
 
 from src.domain.models import FreeSlot, FocusBlock
 from src.ports.schedule import ScheduleSummaryPort
+from src.ports.calendar_scheduling import CalendarSchedulingPort
 
 logger = logging.getLogger(__name__)
 
@@ -224,10 +225,13 @@ class GoogleCalendarAdapter(ScheduleSummaryPort):
                 'expiration': expiration,
             }
             
-            watch_response = self.service.events().watch(
+            # Run blocking Google API call in thread executor
+            loop = asyncio.get_event_loop()
+            watch_request = self.service.events().watch(
                 calendarId='primary',
                 body=body
-            ).execute()
+            )
+            watch_response = await loop.run_in_executor(None, watch_request.execute)
             
             logger.info(f"Set up calendar watch: {watch_response}")
             return watch_response
@@ -292,7 +296,7 @@ class GoogleCalendarAdapter(ScheduleSummaryPort):
                 raise
 
 
-class CalendarService:
+class CalendarService(CalendarSchedulingPort):
     
     def __init__(self, adapter: GoogleCalendarAdapter):
         self.adapter = adapter
@@ -358,6 +362,32 @@ class CalendarService:
                 focus_block.calendar_id
             )
             del self._focus_blocks[task_id]
+    
+    async def cancel_scheduled_task(self, event_id: str) -> bool:
+        """
+        Cancel a previously scheduled task.
+        
+        Args:
+            event_id: The calendar event ID to cancel
+            
+        Returns:
+            True if canceled successfully, False otherwise
+        """
+        try:
+            # Find the task_id associated with this event
+            task_id = None
+            for tid, block in self._focus_blocks.items():
+                if block.event_id == event_id:
+                    task_id = tid
+                    break
+            
+            if task_id:
+                await self.cancel_task_focus_blocks(task_id)
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to cancel scheduled task {event_id}: {e}")
+            return False
     
     async def handle_calendar_push(self, channel_token: str) -> List[Dict[str, Any]]:
         changes = await self.adapter.sync_calendar_changes()

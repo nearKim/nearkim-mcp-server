@@ -11,7 +11,6 @@ from src.domain.entities import Task
 from src.domain.models import ClassificationDecision, DecisionRecord
 from src.ports.todoist import TodoistPort
 from src.domain.services.classification import ClassifierService
-from src.domain.services.task_ignore import TaskIgnoreService
 from src.domain.repositories import DecisionRepository
 
 
@@ -30,11 +29,6 @@ class TestTodoistService:
         classifier = AsyncMock(spec=ClassifierService)
         return classifier
 
-    @pytest.fixture
-    def mock_ignore_service(self):
-        """Create a mock TaskIgnoreService."""
-        service = MagicMock(spec=TaskIgnoreService)
-        return service
 
     @pytest.fixture
     def mock_decision_repo(self):
@@ -53,7 +47,6 @@ class TestTodoistService:
         self, 
         mock_adapter, 
         mock_classifier, 
-        mock_ignore_service, 
         mock_decision_repo,
         mock_calendar_service
     ):
@@ -61,8 +54,8 @@ class TestTodoistService:
         return TodoistService(
             adapter=mock_adapter,
             classifier=mock_classifier,
-            ignore_service=mock_ignore_service,
             decision_repository=mock_decision_repo,
+            output_mode="labels",
             calendar_service=mock_calendar_service
         )
 
@@ -452,7 +445,6 @@ class TestTodoistService:
         self,
         mock_adapter,
         mock_classifier,
-        mock_ignore_service,
         mock_decision_repo
     ):
         """Test classification when calendar service is None."""
@@ -460,8 +452,8 @@ class TestTodoistService:
         service = TodoistService(
             adapter=mock_adapter,
             classifier=mock_classifier,
-            ignore_service=mock_ignore_service,
             decision_repository=mock_decision_repo,
+            output_mode="labels",
             calendar_service=None  # No calendar service
         )
         

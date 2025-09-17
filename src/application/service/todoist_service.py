@@ -8,7 +8,6 @@ from src.domain.entities import Task
 from src.domain.models import ClassificationDecision, DecisionRecord
 from src.domain.repositories import DecisionRepository
 from src.domain.services.classification import ClassifierService
-from src.domain.services.task_ignore import TaskIgnoreService
 from src.ports.todoist import TodoistPort
 
 logger = logging.getLogger(__name__)
@@ -20,14 +19,14 @@ class TodoistService:
         self,
         adapter: TodoistPort,
         classifier: ClassifierService,
-        ignore_service: TaskIgnoreService,
         decision_repository: DecisionRepository,
+        output_mode: str = "labels",
         calendar_service=None
     ):
         self.adapter = adapter
         self.classifier = classifier
-        self.ignore_service = ignore_service
         self.decision_repository = decision_repository
+        self.output_mode = output_mode
         self.calendar_service = calendar_service
     
     async def classify_all_tasks(self, project_id: Optional[str] = None) -> Dict[str, Any]:
@@ -54,7 +53,7 @@ class TodoistService:
                 record = DecisionRecord.from_decision(
                     todoist_id=task.todoist_id,
                     decision=decision,
-                    applied_mode="labels"
+                    applied_mode=self.output_mode
                 )
                 await self.decision_repository.save(record)
                 
@@ -81,7 +80,7 @@ class TodoistService:
         record = DecisionRecord.from_decision(
             todoist_id=task_id,
             decision=decision,
-            applied_mode="labels"
+            applied_mode=self.output_mode
         )
         await self.decision_repository.save(record)
         
