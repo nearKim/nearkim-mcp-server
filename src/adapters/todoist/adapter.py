@@ -46,6 +46,32 @@ class TodoistAPIAdapter(TodoistAPIBase):
             for project in project_batch:
                 projects.append(self._project_to_dto(project))
         return projects
+    
+    async def fetch_tasks(self, project_id: str = None) -> list[dict]:
+        tasks = []
+        if project_id:
+            async for task_batch in await self.api.get_tasks(project_id=project_id):
+                for task in task_batch:
+                    tasks.append({
+                        "id": task.id,
+                        "content": task.content,
+                        "project_id": task.project_id,
+                        "labels": task.labels,
+                        "priority": task.priority,
+                        "due": task.due.to_dict() if task.due else None
+                    })
+        else:
+            async for task_batch in await self.api.get_tasks():
+                for task in task_batch:
+                    tasks.append({
+                        "id": task.id,
+                        "content": task.content,
+                        "project_id": task.project_id,
+                        "labels": task.labels,
+                        "priority": task.priority,
+                        "due": task.due.to_dict() if task.due else None
+                    })
+        return tasks
 
     @staticmethod
     def _task_to_dto(task: Task) -> TaskDTO:
@@ -143,3 +169,12 @@ class TodoistAdapter:
 
     async def should_ignore_task(self, task_json: dict) -> bool:
         return await self.ignore_service.should_ignore(task_json)
+    
+    async def fetch_tasks(self, project_id: str = None) -> list[dict]:
+        return await self.api_adapter.fetch_tasks(project_id=project_id)
+    
+    async def fetch_labels(self) -> list[LabelDTO]:
+        return await self.api_adapter.fetch_labels()
+    
+    async def fetch_projects(self) -> list[ProjectDTO]:
+        return await self.api_adapter.fetch_projects()

@@ -18,6 +18,7 @@ from src.application.service.todoist import (
     LabelService,
     TaskIgnoreService,
     TaskService,
+    TodoistService,
 )
 from src.domain.models import ClassificationDecision, DecisionStatus
 from src.domain.services.task_ignore import IgnoreRules
@@ -362,3 +363,178 @@ class TestTaskIgnoreService:
             
             assert result is True
             mock_domain_service.should_ignore.assert_called_once_with(task_json)
+
+
+class TestTodoistService:
+    """Test TodoistService batch operations."""
+    
+    @pytest.mark.asyncio
+    async def test_classify_all_tasks_success(self):
+        """Test successful batch classification of tasks."""
+        mock_adapter = AsyncMock()
+        mock_classifier = MagicMock()
+        mock_ignore_service = MagicMock()
+        mock_decision_repo = AsyncMock()
+        mock_calendar_service = AsyncMock()
+        
+        mock_adapter.fetch_tasks.return_value = [
+            {
+                "id": "task1",
+                "content": "Important task",
+                "project_id": "proj1",
+                "labels": ["work"],
+                "priority": 4,
+                "due": None
+            },
+            {
+                "id": "task2",
+                "content": "Urgent task",
+                "project_id": "proj1",
+                "labels": [],
+                "priority": 1,
+                "due": {"date": "2024-01-20"}
+            },
+            {
+                "id": "task3",
+                "content": "Ignored task",
+                "project_id": "ignored_proj",
+                "labels": ["no-eisenhower"],
+                "priority": 1,
+                "due": None
+            }
+        ]
+        
+        mock_ignore_service.should_ignore.side_effect = [False, False, True]
+        
+        decision1 = ClassificationDecision(
+            quadrant="Q2",
+            urgent=False,
+            important=True,
+            reason="Important but not urgent"
+        )
+        decision2 = ClassificationDecision(
+            quadrant="Q1",
+            urgent=True,
+            important=True,
+            reason="Urgent and important"
+        )
+        mock_classifier.classify.side_effect = [decision1, decision2]
+        
+        mock_calendar_service.schedule_q2_task.return_value = {
+            "event_id": "cal123",
+            "start": "2024-01-15T10:00:00Z",
+            "end": "2024-01-15T11:30:00Z"
+        }
+        
+        service = TodoistService(
+            adapter=mock_adapter,
+            classifier=mock_classifier,
+            ignore_service=mock_ignore_service,
+            decision_repository=mock_decision_repo,
+            calendar_service=mock_calendar_service
+        )
+        
+        result = await service.classify_all_tasks(project_id="proj1")
+        
+        assert result["total"] == 3
+        assert result["classified"] == 2
+        assert result["ignored"] == 1
+        assert result["failed"] == 0
+        assert result["q2_scheduled"] == 1
+        
+        assert mock_adapter.fetch_tasks.called_once_with(project_id="proj1")
+        assert mock_classifier.classify.call_count == 2
+        assert mock_adapter.apply_eisenhower.call_count == 2
+        assert mock_decision_repo.save_decision.call_count == 2
+        assert mock_calendar_service.schedule_q2_task.call_count == 1
+    
+    @pytest.mark.asyncio
+    async def test_classify_all_tasks_with_errors(self):
+        """Test batch classification with some errors."""
+        mock_adapter = AsyncMock()
+        mock_classifier = MagicMock()
+        mock_ignore_service = MagicMock()
+        mock_decision_repo = AsyncMock()
+        
+        mock_adapter.fetch_tasks.return_value = [
+            {
+                "id": "task1",
+                "content": "Good task",
+                "project_id": "proj1",
+                "labels": [],
+                "priority": 2,
+                "due": None
+            },
+            {
+                "id": "task2",
+                "content": "Bad task",
+                "project_id": "proj1",
+                "labels": [],
+                "priority": 2,
+                "due": None
+            }
+        ]
+        
+        mock_ignore_service.should_ignore.return_value = False
+        
+        decision1 = ClassificationDecision(
+            quadrant="Q3",
+            urgent=True,
+            important=False,
+            reason="Urgent but not important"
+        )
+        mock_classifier.classify.side_effect = [
+            decision1,
+            Exception("Classification failed")
+        ]
+        
+        service = TodoistService(
+            adapter=mock_adapter,
+            classifier=mock_classifier,
+            ignore_service=mock_ignore_service,
+            decision_repository=mock_decision_repo,
+            calendar_service=None
+        )
+        
+        result = await service.classify_all_tasks()
+        
+        assert result["total"] == 2
+        assert result["classified"] == 1
+        assert result["ignored"] == 0
+        assert result["failed"] == 1
+        assert result["q2_scheduled"] == 0
+    
+    @pytest.mark.asyncio
+    async def test_fetch_tasks_with_project_filter(self):
+        """Test fetch_tasks with project filtering."""
+        from src.adapters.todoist.adapter import TodoistAPIAdapter
+        from todoist_api_python.api_async import TodoistAPIAsync
+        from todoist_api_python.models import Task
+        
+        mock_api = AsyncMock(spec=TodoistAPIAsync)
+        api_adapter = TodoistAPIAdapter(mock_api)
+        
+        mock_task1 = MagicMock(spec=Task)
+        mock_task1.id = "task1"
+        mock_task1.content = "Task in project"
+        mock_task1.project_id = "proj123"
+        mock_task1.labels = ["urgent"]
+        mock_task1.priority = 4
+        mock_task1.due = None
+        
+        async def mock_get_tasks_generator(project_id=None):
+            yield [mock_task1]
+        
+        mock_api.get_tasks.return_value = mock_get_tasks_generator(project_id="proj123")
+        
+        result = await api_adapter.fetch_tasks(project_id="proj123")
+        
+        assert len(result) == 1
+        assert result[0]["id"] == "task1"
+        assert result[0]["content"] == "Task in project"
+        assert result[0]["project_id"] == "proj123"
+        assert result[0]["labels"] == ["urgent"]
+        assert result[0]["priority"] == 4
+        assert result[0]["due"] is None
+        
+        mock_api.get_tasks.assert_called_once_with(project_id="proj123")

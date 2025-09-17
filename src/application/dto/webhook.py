@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
-from src.domain.models import ClassificationDecision
+from src.domain.models import ClassificationDecision, DecisionStatus
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,13 @@ class WebhookResponseDTO:
     
     @classmethod
     def applied(cls, task_id: str, event: str, decision: ClassificationDecision) -> WebhookResponseDTO:
-        status = "fallback" if decision.is_fallback else "applied"
+        if decision.status == DecisionStatus.ERROR:
+            status = "llm_error"
+        elif decision.status == DecisionStatus.FALLBACK:
+            status = "fallback"
+        else:
+            status = "applied"
+        
         return cls(
             status=status,
             task_id=task_id,

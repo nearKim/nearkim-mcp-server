@@ -348,3 +348,104 @@ class TestWebhookResponseDTO:
         assert response.event == "unknown:event"
         assert response.reason == "unsupported_event"
         assert response.task_id == ""
+    
+    @pytest.mark.asyncio
+    async def test_classification_error_flow(self):
+        """Test webhook flow when classification fails with error."""
+        from src.application.middleware.error_handling import ErrorHandlingMiddleware
+        from src.application.middleware.base import MiddlewarePipeline
+        from src.application.middleware.classification import ClassificationHandler
+        from src.application.commands.classification import ClassifyTaskCommand
+        
+        mock_todoist_port = AsyncMock()
+        mock_classifier = MagicMock()
+        mock_decisions = AsyncMock()
+        mock_email_service = AsyncMock()
+        
+        task = Task(
+            todoist_id="task_456",
+            content="Failed task",
+            project_id="proj_1",
+            labels=[]
+        )
+        mock_todoist_port.get_task.return_value = task
+        mock_todoist_port.should_ignore_task.return_value = False
+        
+        mock_classifier.classify.side_effect = Exception("LLM API error")
+        
+        mock_todoist_port.get_task.return_value = task
+        mock_todoist_port.update_task = AsyncMock()
+        
+        handler = ClassificationHandler(ClassifierService(llm=mock_classifier))
+        pipeline = (
+            MiddlewarePipeline(handler)
+            .use(ErrorHandlingMiddleware(
+                todoist_adapter=mock_todoist_port,
+                email_service=mock_email_service,
+                error_label="error"
+            ))
+        )
+        
+        service = TodoistWebhookService(
+            todoist_port=mock_todoist_port,
+            classifier=ClassifierService(llm=mock_classifier),
+            decisions=mock_decisions,
+            output_mode="labels",
+            email_service=mock_email_service
+        )
+        service.classification_pipeline = pipeline
+        
+        payload = {
+            "event_data": {
+                "id": "task_456",
+                "content": "Failed task"
+            }
+        }
+        
+        response = await service.handle("item:added", payload)
+        
+        assert response.status == "llm_error"
+        assert response.task_id == "task_456"
+        assert response.event == "item:added"
+        assert response.error_detail is not None
+        assert "Exception: LLM API error" in response.error_detail
+        
+        mock_email_service.send_error_notification.assert_called_once()
+        call_args = mock_email_service.send_error_notification.call_args
+        assert call_args[1]["task_id"] == "task_456"
+        assert call_args[1]["task_content"] == "Failed task"
+    
+    def test_webhook_response_error_status(self):
+        """Test that error decisions produce llm_error status."""
+        decision = ClassificationDecision(
+            quadrant="Q4",
+            urgent=False,
+            important=False,
+            reason="Error occurred during classification",
+            status=DecisionStatus.ERROR,
+            error_detail="OpenAI API timeout"
+        )
+        
+        response = WebhookResponseDTO.applied("task_789", "item:updated", decision)
+        
+        assert response.status == "llm_error"
+        assert response.error_detail == "OpenAI API timeout"
+        assert response.decision["quadrant"] == "Q4"
+        assert response.decision["reason"] == "Error occurred during classification"
+    
+    def test_webhook_response_fallback_status(self):
+        """Test that fallback decisions produce fallback status."""
+        decision = ClassificationDecision(
+            quadrant="Q4",
+            urgent=False,
+            important=False,
+            reason="Applied default priority",
+            status=DecisionStatus.FALLBACK,
+            error_detail="JSON parsing failed"
+        )
+        
+        response = WebhookResponseDTO.applied("task_890", "item:added", decision)
+        
+        assert response.status == "fallback"
+        assert response.error_detail == "JSON parsing failed"
+        assert response.decision["quadrant"] == "Q4"
