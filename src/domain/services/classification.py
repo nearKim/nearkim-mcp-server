@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 
 from ..entities import Task
 from ..models import ClassificationDecision
@@ -7,16 +8,16 @@ from ..models import ClassificationDecision
 
 class ClassifierService:
     
-    def __init__(self, llm, profile_repo=None, calendar_repo=None):
+    def __init__(self, llm, profile_port=None, schedule_port=None):
         self.llm = llm
-        self.profile_repo = profile_repo
-        self.calendar_repo = calendar_repo
+        self.profile_port = profile_port
+        self.schedule_port = schedule_port
 
-    def classify(
+    async def classify(
         self, task: Task, *, force_json: bool = False
     ) -> ClassificationDecision:
-        profile = self.profile_repo.load_compact_profile() if self.profile_repo else {}
+        profile = await self.profile_port.load_compact_profile() if self.profile_port else {}
         near_term = (
-            self.calendar_repo.next_window_summary(days=7) if self.calendar_repo else {}
+            await self.schedule_port.next_window_summary(days=7) if self.schedule_port else {}
         )
         return self.llm.classify_task(task, profile, near_term, force_json=force_json)

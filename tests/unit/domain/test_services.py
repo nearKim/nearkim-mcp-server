@@ -1,7 +1,7 @@
 """Tests for domain services."""
 
 import pytest
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 from src.domain.services.classification import ClassifierService
 from src.domain.services.task_ignore import IgnoreRules, TaskIgnoreService
@@ -13,15 +13,16 @@ from src.domain.value_objects import EntityId, EntityName
 class TestClassifierService:
     """Test ClassifierService."""
     
-    def test_classify_with_all_repos(self):
+    @pytest.mark.asyncio
+    async def test_classify_with_all_repos(self):
         """Test classification with profile and calendar repos."""
         # Setup
         mock_llm = MagicMock()
-        mock_profile_repo = MagicMock()
-        mock_calendar_repo = MagicMock()
+        mock_profile_port = AsyncMock()
+        mock_schedule_port = AsyncMock()
         
-        mock_profile_repo.load_compact_profile.return_value = {"name": "John"}
-        mock_calendar_repo.next_window_summary.return_value = {"meetings": 5}
+        mock_profile_port.load_compact_profile.return_value = {"name": "John"}
+        mock_schedule_port.next_window_summary.return_value = {"meetings": 5}
         
         expected_decision = ClassificationDecision(
             quadrant="Q1",
@@ -33,8 +34,8 @@ class TestClassifierService:
         
         service = ClassifierService(
             llm=mock_llm,
-            profile_repo=mock_profile_repo,
-            calendar_repo=mock_calendar_repo
+            profile_port=mock_profile_port,
+            schedule_port=mock_schedule_port
         )
         
         task = Task(
@@ -45,12 +46,12 @@ class TestClassifierService:
         )
         
         # Execute
-        result = service.classify(task)
+        result = await service.classify(task)
         
         # Verify
         assert result == expected_decision
-        mock_profile_repo.load_compact_profile.assert_called_once()
-        mock_calendar_repo.next_window_summary.assert_called_once_with(days=7)
+        mock_profile_port.load_compact_profile.assert_called_once()
+        mock_schedule_port.next_window_summary.assert_called_once_with(days=7)
         mock_llm.classify_task.assert_called_once_with(
             task,
             {"name": "John"},
@@ -58,7 +59,8 @@ class TestClassifierService:
             force_json=False
         )
     
-    def test_classify_without_repos(self):
+    @pytest.mark.asyncio
+    async def test_classify_without_repos(self):
         """Test classification without profile and calendar repos."""
         mock_llm = MagicMock()
         expected_decision = ClassificationDecision(
@@ -78,7 +80,7 @@ class TestClassifierService:
             labels=[]
         )
         
-        result = service.classify(task, force_json=True)
+        result = await service.classify(task, force_json=True)
         
         assert result == expected_decision
         mock_llm.classify_task.assert_called_once_with(

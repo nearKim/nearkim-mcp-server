@@ -147,8 +147,8 @@ class Container:
         if self._classifier_service is None:
             self._classifier_service = ClassifierService(
                 llm=self.openai_adapter,
-                profile_repo=self.profile_repository,
-                calendar_repo=self.calendar_adapter
+                profile_port=self.profile_repository,
+                schedule_port=self.calendar_adapter
             )
         return self._classifier_service
     

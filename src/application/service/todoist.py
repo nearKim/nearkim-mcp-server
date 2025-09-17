@@ -56,7 +56,7 @@ class TodoistService:
                     due=task_data.get("due")
                 )
                 
-                decision = self.classifier.classify(task)
+                decision = await self.classifier.classify(task)
                 
                 await self.adapter.apply_eisenhower(task.todoist_id, decision)
                 
@@ -92,7 +92,7 @@ class TodoistService:
             due=task_dto.due
         )
         
-        decision = self.classifier.classify(task, force_json=True)
+        decision = await self.classifier.classify(task, force_json=True)
         
         await self.adapter.apply_eisenhower(task_id, decision)
         

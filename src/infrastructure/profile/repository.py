@@ -6,10 +6,12 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.ports.profile import ProfilePort
+
 logger = logging.getLogger(__name__)
 
 
-class ProfileRepository:
+class ProfileRepository(ProfilePort):
     
     def __init__(self, profile_path: Path, knowledge_path: Path):
         self.profile_path = profile_path

@@ -11,11 +11,12 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from src.domain.models import FreeSlot, FocusBlock
+from src.ports.schedule import ScheduleSummaryPort
 
 logger = logging.getLogger(__name__)
 
 
-class GoogleCalendarAdapter:
+class GoogleCalendarAdapter(ScheduleSummaryPort):
     
     def __init__(
         self,
@@ -234,6 +235,24 @@ class GoogleCalendarAdapter:
         except HttpError as e:
             logger.error(f"Failed to setup push notifications: {e}")
             raise
+    
+    async def next_window_summary(self, days: int = 7) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        end_time = now + timedelta(days=days)
+        
+        busy_times = await self._get_busy_times(now, end_time)
+        
+        total_busy_minutes = 0
+        for busy_period in busy_times:
+            duration = (busy_period['end'] - busy_period['start']).total_seconds() / 60
+            total_busy_minutes += duration
+        
+        return {
+            "days": days,
+            "busy_blocks": len(busy_times),
+            "total_busy_hours": round(total_busy_minutes / 60, 1),
+            "average_daily_hours": round(total_busy_minutes / 60 / days, 1)
+        }
     
     async def sync_calendar_changes(self) -> List[Dict[str, Any]]:
         try:

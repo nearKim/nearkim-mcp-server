@@ -68,7 +68,7 @@ class ClassificationHandler:
         self.classifier = classifier
     
     async def __call__(self, command: ClassifyTaskCommand) -> ClassificationDecision:
-        return self.classifier.classify(
+        return await self.classifier.classify(
             command.task,
             force_json=command.force_json
         )

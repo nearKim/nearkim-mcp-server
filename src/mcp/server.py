@@ -171,7 +171,7 @@ class EisenhowerMCPServer:
             )
             
             classifier = self.container.classifier_service
-            decision = classifier.classify(task, force_json=True)
+            decision = await classifier.classify(task, force_json=True)
             
             await todoist.apply_eisenhower(task_id, decision)
             

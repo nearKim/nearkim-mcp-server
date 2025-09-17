@@ -418,7 +418,12 @@ class TestTodoistService:
             important=True,
             reason="Urgent and important"
         )
-        mock_classifier.classify.side_effect = [decision1, decision2]
+        async def async_classify(task, **kwargs):
+            if task.todoist_id == "task1":
+                return decision1
+            return decision2
+        
+        mock_classifier.classify = async_classify
         
         mock_calendar_service.schedule_q2_task.return_value = {
             "event_id": "cal123",
@@ -483,10 +488,12 @@ class TestTodoistService:
             important=False,
             reason="Urgent but not important"
         )
-        mock_classifier.classify.side_effect = [
-            decision1,
-            Exception("Classification failed")
-        ]
+        async def async_classify_with_error(task, **kwargs):
+            if task.todoist_id == "task1":
+                return decision1
+            raise Exception("Classification failed")
+        
+        mock_classifier.classify = async_classify_with_error
         
         service = TodoistService(
             adapter=mock_adapter,
