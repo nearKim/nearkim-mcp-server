@@ -1,0 +1,42 @@
+# Eisenhower MCP Server Configuration
+
+# Todoist API configuration
+todoist:
+  api_key: "YOUR_TODOIST_API_KEY"
+  webhook_secret: "YOUR_WEBHOOK_SECRET"  # Optional, for webhook verification
+
+# OpenAI API configuration
+openai:
+  api_key: "YOUR_OPENAI_API_KEY"
+  model: "gpt-4"
+  temperature: 0.3
+
+# Google Calendar configuration (optional)
+google:
+  calendar_ids:
+    - "primary"
+    - "work@example.com"
+  workday_start: 9
+  workday_end: 17
+
+# Classification settings
+classification:
+  output: "labels"  # "labels" or "priorities"
+  default_quadrant: "Q4"
+  force_json: true
+
+# Ignore rules
+ignore:
+  project_ids: []
+  project_names:
+    - "Personal"
+    - "Archive"
+  label_names:
+    - "no-eisenhower"
+    - "recurring"
+
+# Data storage
+data_dir: "./data"
+
+# Logging
+log_level: "INFO"

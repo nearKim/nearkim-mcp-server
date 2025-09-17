@@ -1,0 +1,23 @@
+{
+  "name": "eisenhower-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Eisenhower matrix task classification",
+  "scripts": {
+    "start": "python -m src",
+    "dev": "python -m src",
+    "test": "pytest tests/",
+    "lint": "ruff check src/ tests/",
+    "typecheck": "mypy src/ tests/"
+  },
+  "keywords": [
+    "mcp",
+    "eisenhower",
+    "todoist",
+    "productivity",
+    "task-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

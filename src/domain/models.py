@@ -8,6 +8,22 @@ from pydantic.dataclasses import dataclass
 Quadrant = typing.Literal["Q1", "Q2", "Q3", "Q4"]
 
 
+@dataclass
+class FreeSlot:
+    start: datetime
+    end: datetime
+    duration_minutes: int
+
+
+@dataclass  
+class FocusBlock:
+    event_id: str
+    task_id: str
+    start: datetime
+    end: datetime
+    calendar_id: str
+
+
 class DecisionStatus(Enum):
     SUCCESS = "success"
     FALLBACK = "fallback"
