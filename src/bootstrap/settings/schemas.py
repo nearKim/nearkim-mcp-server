@@ -13,8 +13,8 @@ class TodoistConfig(BaseModel):
         autocreate_labels: bool = Field(True, alias="auto_create_labels")
 
     class IgnoreRulesConfig(BaseModel):
-        projects_by_name: List[str] = ["Shopping"]
         project_ids: List[str] = []
+        projects_by_name: List[str] = ["Shopping"]
         labels_by_name: List[str] = ["no-classify"]
 
     token: SecretStr | None = None

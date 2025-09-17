@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import IntEnum
+from functools import singledispatchmethod
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from src.domain.ports.cache import EntityCache
+from src.domain.value_objects import EntityId, EntityName
 
 
 class Priority(IntEnum):
@@ -95,7 +99,7 @@ class TaskUpdateDTO(BaseModel):
         return {k: v for k, v in self.model_dump().items() if v is not None}
 
 
-class LabelCacheDTO(BaseModel):
+class LabelCacheDTO(BaseModel, EntityCache):
     by_id: dict[str, LabelDTO] = Field(default_factory=dict)
     by_name: dict[str, LabelDTO] = Field(default_factory=dict)
 
@@ -103,15 +107,28 @@ class LabelCacheDTO(BaseModel):
         self.by_id[label.id] = label
         self.by_name[label.name] = label
 
-    def get_id(self, name: str) -> Optional[str]:
-        label = self.by_name.get(name)
+    @singledispatchmethod
+    def get(self, query: object) -> Optional[str]:
+        raise NotImplementedError(f"Cannot query with {type(query)}")
+    
+    @get.register
+    def _(self, query: EntityId) -> Optional[str]:
+        label = self.by_id.get(query.value)
+        return label.name if label else None
+    
+    @get.register
+    def _(self, query: EntityName) -> Optional[str]:
+        label = self.by_name.get(query.value)
         return label.id if label else None
+    
+    def get_id(self, name: str) -> Optional[str]:
+        return self.get(EntityName(name))
 
     def exists(self, name: str) -> bool:
         return name in self.by_name
 
 
-class ProjectCacheDTO(BaseModel):
+class ProjectCacheDTO(BaseModel, EntityCache):
     by_id: dict[str, ProjectDTO] = Field(default_factory=dict)
     by_name: dict[str, ProjectDTO] = Field(default_factory=dict)
 
@@ -119,6 +136,19 @@ class ProjectCacheDTO(BaseModel):
         self.by_id[project.id] = project
         self.by_name[project.name] = project
 
-    def get_name(self, id: str) -> Optional[str]:
-        project = self.by_id.get(id)
+    @singledispatchmethod
+    def get(self, query: object) -> Optional[str]:
+        raise NotImplementedError(f"Cannot query with {type(query)}")
+    
+    @get.register
+    def _(self, query: EntityId) -> Optional[str]:
+        project = self.by_id.get(query.value)
         return project.name if project else None
+    
+    @get.register
+    def _(self, query: EntityName) -> Optional[str]:
+        project = self.by_name.get(query.value)
+        return project.id if project else None
+    
+    def get_name(self, id: str) -> Optional[str]:
+        return self.get(EntityId(id))

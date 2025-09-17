@@ -1,20 +1,25 @@
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Dict, Optional
 
-from src.domain.entities import Task
-from src.domain.exceptions import LLMResponseFormatError
-from src.domain.models import ClassificationDecision, DecisionRecord
+from src.application.dto.webhook import WebhookEventDTO, WebhookResponseDTO
+from src.application.middleware.base import MiddlewarePipeline
+from src.application.commands.classification import ClassifyTaskCommand
+from src.application.middleware.classification import (
+    ClassificationHandler,
+    FallbackMiddleware,
+    ForcedJsonMiddleware,
+    LoggingMiddleware,
+)
+from src.domain.exceptions import WebhookValidationException
+from src.domain.models import DecisionRecord
 from src.domain.repositories import DecisionRepository
-from src.domain.services import ClassifierService
+from src.domain.services.classification import ClassifierService
 from src.ports.todoist import TodoistPort
 
 
 class TodoistWebhookService:
-    """Coordinate Todoist webhook processing and Eisenhower classification."""
-
     CLASSIFY_EVENTS = {"item:added", "item:updated", "item:uncompleted"}
     COMPLETE_EVENTS = {"item:completed", "item:deleted"}
 
@@ -28,96 +33,63 @@ class TodoistWebhookService:
         clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
         self.todoist_port = todoist_port
-        self.classifier = classifier
         self.decisions = decisions
         self.output_mode = output_mode
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        
+        handler = ClassificationHandler(classifier)
+        self.classification_pipeline = (
+            MiddlewarePipeline(handler)
+            .use(FallbackMiddleware())
+            .use(LoggingMiddleware())
+            .use(ForcedJsonMiddleware())
+        )
 
     async def handle(
-        self, event_name: str, payload: Mapping[str, Any]
-    ) -> dict[str, Any]:
-        normalized = event_name or payload.get("event_name")
-        if not normalized:
-            raise ValueError("Event name is required for webhook handling")
-
-        if normalized in self.CLASSIFY_EVENTS:
-            return await self._handle_classification(normalized, payload)
-        if normalized in self.COMPLETE_EVENTS:
-            return await self._handle_completion(normalized, payload)
-        return {
-            "status": "ignored",
-            "event": normalized,
-            "reason": "unsupported_event",
-        }
+        self, event_name: str, payload: Dict[str, Any]
+    ) -> WebhookResponseDTO:
+        try:
+            event = WebhookEventDTO.from_payload(event_name, payload)
+        except ValueError as e:
+            raise WebhookValidationException(str(e))
+        
+        if event.event_name in self.CLASSIFY_EVENTS:
+            return await self._handle_classification(event)
+        if event.event_name in self.COMPLETE_EVENTS:
+            return await self._handle_completion(event)
+        
+        return WebhookResponseDTO.unsupported_event(event.event_name)
 
     async def _handle_classification(
-        self, event_name: str, payload: Mapping[str, Any]
-    ) -> dict[str, Any]:
-        task_id = self._extract_task_id(payload)
-        canonical = await self.todoist_port.get_task(task_id)
-        canonical_dict = self._to_dict(canonical)
+        self, event: WebhookEventDTO
+    ) -> WebhookResponseDTO:
+        task_id = event.task_id
+        task = await self.todoist_port.get_task(task_id)
 
-        if await self.todoist_port.should_ignore_task(canonical_dict):
+        if await self.todoist_port.should_ignore_task(task):
             await self.decisions.delete(task_id)
-            return {"status": "ignored", "task_id": task_id, "event": event_name}
+            return WebhookResponseDTO.ignored(task_id, event.event_name)
 
-        task = Task.from_todoist_json(canonical_dict)
-
-        decision = self._classify_with_retry(task)
-        if decision is None:
-            return {"status": "llm_error", "task_id": task_id, "event": event_name}
+        command = ClassifyTaskCommand(task)
+        decision = await self.classification_pipeline.execute(command)
 
         await self.todoist_port.apply_eisenhower(task_id, decision)
 
         record = DecisionRecord.from_decision(
-            todoist_id=task.todoist_id,
+            todoist_id=task_id,
             decision=decision,
             applied_mode=self.output_mode,  # type: ignore[arg-type]
             updated_at=self._clock(),
         )
         await self.decisions.save(record)
 
-        return {
-            "status": "applied",
-            "task_id": task_id,
-            "event": event_name,
-            "decision": asdict(decision),
-        }
+        return WebhookResponseDTO.applied(task_id, event.event_name, decision)
 
     async def _handle_completion(
-        self, event_name: str, payload: Mapping[str, Any]
-    ) -> dict[str, Any]:
-        task_id = self._extract_task_id(payload)
-        await self.decisions.delete(task_id)
-        return {"status": "completed", "task_id": task_id, "event": event_name}
+        self, event: WebhookEventDTO
+    ) -> WebhookResponseDTO:
+        await self.decisions.delete(event.task_id)
+        return WebhookResponseDTO.completed(event.task_id, event.event_name)
 
-    def _classify_with_retry(self, task: Task) -> ClassificationDecision | None:
-        try:
-            return self.classifier.classify(task)
-        except LLMResponseFormatError:
-            try:
-                return self.classifier.classify(task, force_json=True)
-            except LLMResponseFormatError:
-                return None
 
-    @staticmethod
-    def _extract_task_id(payload: Mapping[str, Any]) -> str:
-        candidates = [
-            payload.get("event_data"),
-            payload.get("data"),
-            payload,
-        ]
-        for candidate in candidates:
-            if isinstance(candidate, Mapping) and "id" in candidate:
-                return str(candidate["id"])
-        raise ValueError("Todoist webhook payload did not contain a task identifier")
 
-    @staticmethod
-    def _to_dict(task_obj: Any) -> dict[str, Any]:
-        if hasattr(task_obj, "model_dump"):
-            return task_obj.model_dump()
-        if is_dataclass(task_obj):
-            return asdict(task_obj)
-        if isinstance(task_obj, Mapping):
-            return dict(task_obj)
-        raise TypeError("Unsupported task representation returned by Todoist port")
