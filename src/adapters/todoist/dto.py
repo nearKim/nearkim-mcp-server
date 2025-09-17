@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from enum import IntEnum
 from functools import singledispatchmethod
 from typing import Optional
@@ -19,14 +18,6 @@ class Priority(IntEnum):
 
     @classmethod
     def from_quadrant(cls, quadrant: int | str) -> "Priority":
-        """Map an Eisenhower quadrant to a Todoist priority level.
-
-        Todoist represents priorities as integers where ``4`` is the highest
-        priority (P1) and ``1`` is the lowest (P4).  The Eisenhower matrix uses
-        labels ``Q1`` .. ``Q4``.  Hidden tests exercise both the integer and the
-        string representations, so we accept either and default to ``Q4``/P4
-        when an unknown value is provided.
-        """
 
         if isinstance(quadrant, str):
             normalized = quadrant.strip().upper()

@@ -1,8 +1,6 @@
-"""Google Calendar adapter for timeboxing and availability management."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -18,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleCalendarAdapter:
-    """Adapter for Google Calendar API operations."""
     
     def __init__(
         self,
@@ -36,7 +33,6 @@ class GoogleCalendarAdapter:
         self._availability_cache: Dict[str, List[Dict]] = {}
         
     async def initialize(self):
-        """Initialize the Google Calendar service."""
         if self.credentials.expired and self.credentials.refresh_token:
             self.credentials.refresh(Request())
         
@@ -47,14 +43,11 @@ class GoogleCalendarAdapter:
         horizon_days: int = 7,
         min_block_minutes: int = 30
     ) -> List[FreeSlot]:
-        """Find free time slots within the specified horizon."""
         now = datetime.now(timezone.utc)
         end_time = now + timedelta(days=horizon_days)
         
-        # Get busy times for all calendars
         busy_times = await self._get_busy_times(now, end_time)
         
-        # Calculate free slots
         free_slots = self._calculate_free_slots(
             busy_times,
             now,
@@ -69,19 +62,15 @@ class GoogleCalendarAdapter:
         start: datetime,
         end: datetime
     ) -> List[Dict[str, datetime]]:
-        """Get busy times from all calendars."""
         try:
-            # Prepare freebusy query
             body = {
                 "timeMin": start.isoformat(),
                 "timeMax": end.isoformat(),
                 "items": [{"id": cal_id} for cal_id in self.calendar_ids]
             }
             
-            # Query freebusy information
             freebusy_result = self.service.freebusy().query(body=body).execute()
             
-            # Collect all busy periods
             busy_times = []
             for cal_id in self.calendar_ids:
                 calendar_busy = freebusy_result['calendars'].get(cal_id, {})
@@ -91,7 +80,6 @@ class GoogleCalendarAdapter:
                         'end': datetime.fromisoformat(busy_period['end'].replace('Z', '+00:00'))
                     })
             
-            # Sort by start time
             busy_times.sort(key=lambda x: x['start'])
             
             return busy_times
@@ -107,16 +95,13 @@ class GoogleCalendarAdapter:
         end: datetime,
         min_minutes: int
     ) -> List[FreeSlot]:
-        """Calculate free slots from busy times."""
         free_slots = []
         current_time = start
         
         for busy_period in busy_times:
             busy_start = busy_period['start']
             
-            # Check if there's a gap before this busy period
             if current_time < busy_start:
-                # Only include slots during work hours
                 slot_start = self._adjust_to_workday(current_time)
                 slot_end = self._adjust_to_workday_end(busy_start)
                 
@@ -129,10 +114,8 @@ class GoogleCalendarAdapter:
                             duration_minutes=int(duration)
                         ))
             
-            # Move current time to end of busy period
             current_time = max(current_time, busy_period['end'])
         
-        # Check for free time after last busy period
         if current_time < end:
             slot_start = self._adjust_to_workday(current_time)
             slot_end = self._adjust_to_workday_end(end)
@@ -149,13 +132,11 @@ class GoogleCalendarAdapter:
         return free_slots
     
     def _adjust_to_workday(self, dt: datetime) -> datetime:
-        """Adjust datetime to start of workday if needed."""
         if dt.hour < self.workday_start:
             return dt.replace(hour=self.workday_start, minute=0, second=0)
         return dt
     
     def _adjust_to_workday_end(self, dt: datetime) -> datetime:
-        """Adjust datetime to end of workday if needed."""
         if dt.hour > self.workday_end:
             return dt.replace(hour=self.workday_end, minute=0, second=0)
         return dt
@@ -167,7 +148,6 @@ class GoogleCalendarAdapter:
         slot: FreeSlot,
         quadrant: str
     ) -> FocusBlock:
-        """Create a focus block in the calendar."""
         try:
             event = {
                 'summary': f"[{quadrant}] Focus: {task_content[:50]}",
@@ -195,7 +175,6 @@ class GoogleCalendarAdapter:
                 }
             }
             
-            # Create event in primary calendar
             created_event = self.service.events().insert(
                 calendarId='primary',
                 body=event
@@ -214,7 +193,6 @@ class GoogleCalendarAdapter:
             raise
     
     async def cancel_focus_block(self, event_id: str, calendar_id: str = 'primary'):
-        """Cancel a focus block in the calendar."""
         try:
             self.service.events().delete(
                 calendarId=calendar_id,
@@ -235,7 +213,6 @@ class GoogleCalendarAdapter:
         channel_token: str,
         ttl_hours: int = 24
     ) -> Dict[str, Any]:
-        """Set up push notifications for calendar changes."""
         try:
             expiration = int((datetime.now() + timedelta(hours=ttl_hours)).timestamp() * 1000)
             
@@ -259,21 +236,18 @@ class GoogleCalendarAdapter:
             raise
     
     async def sync_calendar_changes(self) -> List[Dict[str, Any]]:
-        """Sync incremental calendar changes using sync token."""
         try:
             changes = []
             page_token = None
             
             while True:
                 if self._sync_token:
-                    # Incremental sync
                     events = self.service.events().list(
                         calendarId='primary',
                         syncToken=self._sync_token,
                         pageToken=page_token
                     ).execute()
                 else:
-                    # Full sync
                     events = self.service.events().list(
                         calendarId='primary',
                         pageToken=page_token
@@ -283,7 +257,6 @@ class GoogleCalendarAdapter:
                 
                 page_token = events.get('nextPageToken')
                 if not page_token:
-                    # Save sync token for next incremental sync
                     self._sync_token = events.get('nextSyncToken')
                     break
             
@@ -292,7 +265,6 @@ class GoogleCalendarAdapter:
             
         except HttpError as e:
             if e.resp.status == 410:
-                # Sync token expired, reset and retry
                 logger.warning("Sync token expired, performing full sync")
                 self._sync_token = None
                 return await self.sync_calendar_changes()
@@ -302,14 +274,12 @@ class GoogleCalendarAdapter:
 
 
 class CalendarService:
-    """Application service for calendar operations."""
     
     def __init__(self, adapter: GoogleCalendarAdapter):
         self.adapter = adapter
         self._focus_blocks: Dict[str, FocusBlock] = {}
     
     async def initialize(self):
-        """Initialize the calendar service."""
         await self.adapter.initialize()
     
     async def find_free_slots(
@@ -317,7 +287,6 @@ class CalendarService:
         horizon_days: int = 7,
         min_block_minutes: int = 30
     ) -> List[Dict[str, Any]]:
-        """Find free calendar slots."""
         slots = await self.adapter.find_free_slots(horizon_days, min_block_minutes)
         
         return [
@@ -335,8 +304,6 @@ class CalendarService:
         task_content: str,
         min_block_minutes: int = 90
     ) -> Optional[Dict[str, Any]]:
-        """Schedule a Q2 task in the next available slot."""
-        # Find free slots
         slots = await self.adapter.find_free_slots(
             horizon_days=7,
             min_block_minutes=min_block_minutes
@@ -346,10 +313,8 @@ class CalendarService:
             logger.warning(f"No free slots found for task {task_id}")
             return None
         
-        # Use the first available slot
         chosen_slot = slots[0]
         
-        # Create focus block
         focus_block = await self.adapter.create_focus_block(
             task_id=task_id,
             task_content=task_content,
@@ -357,7 +322,6 @@ class CalendarService:
             quadrant="Q2"
         )
         
-        # Store focus block reference
         self._focus_blocks[task_id] = focus_block
         
         return {
@@ -368,7 +332,6 @@ class CalendarService:
         }
     
     async def cancel_task_focus_blocks(self, task_id: str):
-        """Cancel all focus blocks for a task."""
         if task_id in self._focus_blocks:
             focus_block = self._focus_blocks[task_id]
             await self.adapter.cancel_focus_block(
@@ -378,15 +341,11 @@ class CalendarService:
             del self._focus_blocks[task_id]
     
     async def handle_calendar_push(self, channel_token: str) -> List[Dict[str, Any]]:
-        """Handle calendar push notification."""
-        # Sync calendar changes
         changes = await self.adapter.sync_calendar_changes()
         
-        # Process changes (e.g., detect conflicts with focus blocks)
         relevant_changes = []
         for event in changes:
             if event.get('status') == 'cancelled':
-                # Check if this was one of our focus blocks
                 extended_props = event.get('extendedProperties', {}).get('private', {})
                 if extended_props.get('created_by') == 'eisenhower-mcp':
                     task_id = extended_props.get('todoist_task_id')

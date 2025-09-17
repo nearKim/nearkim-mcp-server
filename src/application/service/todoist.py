@@ -1,4 +1,3 @@
-"""High-level Todoist service for coordinating task classification and scheduling."""
 
 from __future__ import annotations
 
@@ -16,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class TodoistService:
-    """Coordinates Todoist task classification and scheduling."""
     
     def __init__(
         self,
@@ -33,7 +31,6 @@ class TodoistService:
         self.calendar_service = calendar_service
     
     async def classify_all_tasks(self, project_id: Optional[str] = None) -> Dict[str, Any]:
-        """Classify all tasks in a project or across all projects."""
         tasks = await self.adapter.fetch_tasks(project_id=project_id)
         
         results = {
@@ -82,7 +79,6 @@ class TodoistService:
         return results
     
     async def reclassify_task(self, task_id: str) -> ClassificationDecision:
-        """Force reclassification of a specific task."""
         task_dto = await self.adapter.get_task(task_id)
         
         task = Task(
@@ -109,7 +105,6 @@ class TodoistService:
         return decision
     
     async def get_quadrant_tasks(self, quadrant: str) -> List[Dict[str, Any]]:
-        """Get all tasks in a specific quadrant."""
         decisions = await self.decision_repository.get_by_quadrant(quadrant)
         
         tasks = []
@@ -136,7 +131,6 @@ class TodoistService:
         task: Task, 
         decision: ClassificationDecision
     ) -> Optional[Dict[str, Any]]:
-        """Schedule a Q2 task in the calendar."""
         if not self.calendar_service:
             return None
         

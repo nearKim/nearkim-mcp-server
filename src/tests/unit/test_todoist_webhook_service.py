@@ -205,7 +205,6 @@ async def test_completion_event_removes_saved_decision(
         )
     )
 
-    # Classifier is unused for completion events but needs the attribute.
     class NoopClassifier:
         def classify(
             self, task: Task, *, force_json: bool = False

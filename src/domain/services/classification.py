@@ -1,20 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional
 
 from ..entities import Task
 from ..models import ClassificationDecision
 
 
 class ClassifierService:
-    """
-    Domain service responsible for classifying tasks into Eisenhower quadrants.
-    
-    This service orchestrates the classification process by:
-    1. Gathering context (user profile, calendar)
-    2. Delegating to LLM for classification
-    3. Returning structured classification decision
-    """
     
     def __init__(self, llm, profile_repo=None, calendar_repo=None):
         self.llm = llm

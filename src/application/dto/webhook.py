@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
-from src.domain.models import ClassificationDecision, DecisionStatus
+from src.domain.models import ClassificationDecision
 
 
 @dataclass(frozen=True)

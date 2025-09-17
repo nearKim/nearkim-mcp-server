@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import AsyncGenerator
 
 from todoist_api_python.api_async import TodoistAPIAsync
 from todoist_api_python.models import Label, Project, Task
 
-from src.adapters.todoist.dto import LabelDTO, Priority, ProjectDTO, TaskDTO
+from src.adapters.todoist.dto import LabelDTO, ProjectDTO, TaskDTO
 from src.application.service.todoist import (
     CacheService,
     ClassificationService,

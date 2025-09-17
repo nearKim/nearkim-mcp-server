@@ -1,17 +1,13 @@
-"""MCP Server implementation for Eisenhower classification."""
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from mcp import Resource, Tool, server
-from mcp.server.models import InitializationOptions
 from mcp.types import TextContent
 
-from src.adapters.todoist.adapter import TodoistAdapter
-from src.application.service.webhook import TodoistWebhookService
 from src.bootstrap.container import Container
 from src.domain.entities import Task
 
@@ -19,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class EisenhowerMCPServer:
-    """MCP Server for Eisenhower task classification."""
     
     def __init__(self, container: Container):
         self.container = container
@@ -27,11 +22,9 @@ class EisenhowerMCPServer:
         self._setup_handlers()
     
     def _setup_handlers(self):
-        """Set up MCP protocol handlers."""
         
         @self.app.list_resources()
         async def handle_list_resources() -> List[Resource]:
-            """List available resources."""
             return [
                 Resource(
                     uri="profile://summary",
@@ -55,7 +48,6 @@ class EisenhowerMCPServer:
         
         @self.app.get_resource()
         async def handle_get_resource(uri: str) -> str:
-            """Get resource content by URI."""
             if uri == "profile://summary":
                 profile = await self.container.profile_repository.load_compact_profile()
                 return json.dumps(profile, indent=2)
@@ -74,7 +66,6 @@ class EisenhowerMCPServer:
         
         @self.app.list_tools()
         async def handle_list_tools() -> List[Tool]:
-            """List available tools."""
             return [
                 Tool(
                     name="todoist.force_reclassify",
@@ -139,7 +130,6 @@ class EisenhowerMCPServer:
         
         @self.app.call_tool()
         async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-            """Execute a tool and return results."""
             try:
                 if name == "todoist.force_reclassify":
                     result = await self._force_reclassify(arguments["task_id"])
@@ -167,13 +157,10 @@ class EisenhowerMCPServer:
                 return [TextContent(type="text", text=json.dumps(error_result, indent=2))]
     
     async def _force_reclassify(self, task_id: str) -> Dict[str, Any]:
-        """Force reclassification of a task."""
         try:
-            # Get task from Todoist
             todoist = self.container.todoist_adapter
             task_dto = await todoist.get_task(task_id)
             
-            # Convert to domain entity
             task = Task(
                 todoist_id=task_dto.id,
                 content=task_dto.content,
@@ -183,14 +170,11 @@ class EisenhowerMCPServer:
                 due=task_dto.due
             )
             
-            # Classify
             classifier = self.container.classifier_service
             decision = classifier.classify(task, force_json=True)
             
-            # Apply decision
             await todoist.apply_eisenhower(task_id, decision)
             
-            # Save decision
             await self.container.decision_repository.save_decision(
                 task_id=task_id,
                 decision=decision
@@ -210,11 +194,9 @@ class EisenhowerMCPServer:
             return {"ok": False, "error": str(e)}
     
     async def _set_output_mode(self, mode: str) -> Dict[str, Any]:
-        """Set the classification output mode."""
         if mode not in ["labels", "priorities"]:
             return {"ok": False, "error": f"Invalid mode: {mode}"}
         
-        # Update configuration
         self.container.config.classification.output = mode
         
         return {
@@ -226,7 +208,6 @@ class EisenhowerMCPServer:
     async def _find_free_slots(
         self, horizon_days: int, min_block_minutes: int
     ) -> Dict[str, Any]:
-        """Find free calendar slots."""
         try:
             calendar = self.container.calendar_service
             slots = await calendar.find_free_slots(
@@ -247,7 +228,6 @@ class EisenhowerMCPServer:
             return {"ok": False, "error": str(e)}
     
     async def _refresh_profile(self) -> Dict[str, Any]:
-        """Refresh user profile from knowledge base."""
         try:
             profile_repo = self.container.profile_repository
             await profile_repo.refresh()
@@ -264,7 +244,6 @@ class EisenhowerMCPServer:
             return {"ok": False, "error": str(e)}
     
     async def _get_quadrant_breakdown(self) -> Dict[str, Any]:
-        """Get current task breakdown by quadrant."""
         try:
             decisions = self.container.decision_repository
             breakdown = await decisions.get_quadrant_breakdown()
@@ -287,11 +266,9 @@ class EisenhowerMCPServer:
             }
     
     async def run(self):
-        """Run the MCP server."""
         async with self.app:
             await self.app.run()
 
 
 def create_mcp_server(container: Container) -> EisenhowerMCPServer:
-    """Factory function to create MCP server."""
     return EisenhowerMCPServer(container)

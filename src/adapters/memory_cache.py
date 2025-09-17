@@ -8,11 +8,6 @@ from src.domain.repositories import DecisionRepository
 
 
 class InMemoryDecisionRepository(DecisionRepository):
-    """Simple in-memory repository for classification decisions.
-
-    The production system will likely persist decisions to durable storage, but
-    the in-memory variant keeps the application services easy to unit test.
-    """
 
     def __init__(self) -> None:
         self._records: Dict[str, DecisionRecord] = {}

@@ -1,19 +1,12 @@
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from typing import Optional
 
 from ..ports.cache import EntityCache
 from ..value_objects import EntityId, EntityName, LabelMatch, ProjectMatch
 
 
 class IgnoreRules:
-    """
-    Value object containing business rules for task filtering.
-    
-    Encapsulates which projects and labels should be ignored
-    during task processing.
-    """
     
     def __init__(
         self,
@@ -27,12 +20,6 @@ class IgnoreRules:
 
 
 class TaskIgnoreService:
-    """
-    Domain service that determines if a task should be ignored based on business rules.
-    
-    Implements the strategy pattern using singledispatch to handle
-    different matching criteria (projects vs labels).
-    """
     
     def __init__(
         self, 

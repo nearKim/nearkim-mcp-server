@@ -1,4 +1,3 @@
-"""Dependency injection container for the application."""
 
 from __future__ import annotations
 
@@ -18,6 +17,7 @@ from src.domain.services.classification import ClassifierService
 from src.domain.services.task_ignore import IgnoreRules, TaskIgnoreService
 from src.infrastructure.cache.metadata import EntityCache
 from src.infrastructure.llm.openai_adapter import OpenAIAdapter
+from src.infrastructure.notifications.email_service import EmailService
 from src.infrastructure.persistence.decision_repository import SQLiteDecisionRepository
 from src.infrastructure.profile.repository import ProfileRepository
 
@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 
 class Container:
-    """Application dependency container."""
     
     def __init__(self, config: Config):
         self.config = config
@@ -41,10 +40,10 @@ class Container:
         self._project_cache: Optional[EntityCache] = None
         self._ignore_service: Optional[TaskIgnoreService] = None
         self._openai_adapter: Optional[OpenAIAdapter] = None
+        self._email_service: Optional[EmailService] = None
     
     @property
     def todoist_adapter(self) -> TodoistAdapter:
-        """Get or create Todoist adapter."""
         if self._todoist_adapter is None:
             self._todoist_adapter = TodoistAdapter(
                 api_key=self.config.todoist.api_key
@@ -53,7 +52,6 @@ class Container:
     
     @property
     def calendar_adapter(self) -> Optional[GoogleCalendarAdapter]:
-        """Get or create Google Calendar adapter."""
         if self._calendar_adapter is None and self.config.google:
             credentials = self._load_google_credentials()
             if credentials:
@@ -67,14 +65,12 @@ class Container:
     
     @property
     def calendar_service(self) -> Optional[CalendarService]:
-        """Get or create calendar service."""
         if self._calendar_service is None and self.calendar_adapter:
             self._calendar_service = CalendarService(self.calendar_adapter)
         return self._calendar_service
     
     @property
     def profile_repository(self) -> ProfileRepository:
-        """Get or create profile repository."""
         if self._profile_repository is None:
             profile_path = Path(self.config.data_dir) / "profile.json"
             knowledge_path = Path(self.config.data_dir) / "knowledge.json"
@@ -86,7 +82,6 @@ class Container:
     
     @property
     def decision_repository(self) -> SQLiteDecisionRepository:
-        """Get or create decision repository."""
         if self._decision_repository is None:
             db_path = Path(self.config.data_dir) / "decisions.db"
             self._decision_repository = SQLiteDecisionRepository(db_path)
@@ -94,7 +89,6 @@ class Container:
     
     @property
     def openai_adapter(self) -> OpenAIAdapter:
-        """Get or create OpenAI adapter."""
         if self._openai_adapter is None:
             self._openai_adapter = OpenAIAdapter(
                 api_key=self.config.openai.api_key,
@@ -105,7 +99,6 @@ class Container:
     
     @property
     def label_cache(self) -> EntityCache:
-        """Get or create label cache."""
         if self._label_cache is None:
             self._label_cache = EntityCache(
                 fetch_fn=self.todoist_adapter.fetch_labels
@@ -114,7 +107,6 @@ class Container:
     
     @property
     def project_cache(self) -> EntityCache:
-        """Get or create project cache."""
         if self._project_cache is None:
             self._project_cache = EntityCache(
                 fetch_fn=self.todoist_adapter.fetch_projects
@@ -123,7 +115,6 @@ class Container:
     
     @property
     def ignore_service(self) -> TaskIgnoreService:
-        """Get or create ignore service."""
         if self._ignore_service is None:
             ignore_rules = IgnoreRules(
                 project_ids=set(self.config.ignore.project_ids),
@@ -138,8 +129,21 @@ class Container:
         return self._ignore_service
     
     @property
+    def email_service(self) -> Optional[EmailService]:
+        if self._email_service is None and self.config.email:
+            self._email_service = EmailService(
+                smtp_host=self.config.email.smtp_host,
+                smtp_port=self.config.email.smtp_port,
+                smtp_user=self.config.email.smtp_user,
+                smtp_password=self.config.email.smtp_password,
+                from_email=self.config.email.from_email,
+                to_email=self.config.email.to_email,
+                enabled=self.config.email.enabled
+            )
+        return self._email_service
+    
+    @property
     def classifier_service(self) -> ClassifierService:
-        """Get or create classifier service."""
         if self._classifier_service is None:
             self._classifier_service = ClassifierService(
                 llm=self.openai_adapter,
@@ -150,7 +154,6 @@ class Container:
     
     @property
     def webhook_service(self) -> TodoistWebhookService:
-        """Get or create webhook service."""
         if self._webhook_service is None:
             self._webhook_service = TodoistWebhookService(
                 classifier_service=self.classifier_service,
@@ -163,7 +166,6 @@ class Container:
     
     @property
     def todoist_service(self) -> TodoistService:
-        """Get or create Todoist service."""
         if self._todoist_service is None:
             self._todoist_service = TodoistService(
                 adapter=self.todoist_adapter,
@@ -175,8 +177,9 @@ class Container:
         return self._todoist_service
     
     async def initialize(self):
-        """Initialize all services."""
         logger.info("Initializing container services...")
+        
+        await self.decision_repository.connect()
         
         if self.calendar_adapter:
             await self.calendar_adapter.initialize()
@@ -191,8 +194,12 @@ class Container:
         
         logger.info("Container services initialized successfully")
     
+    async def shutdown(self):
+        logger.info("Shutting down container services...")
+        await self.decision_repository.disconnect()
+        logger.info("Container services shut down successfully")
+    
     def _load_google_credentials(self) -> Optional[Credentials]:
-        """Load Google credentials from environment or file."""
         try:
             token_path = Path(self.config.data_dir) / "google_token.json"
             if token_path.exists():

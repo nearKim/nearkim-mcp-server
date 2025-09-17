@@ -23,11 +23,9 @@ class EntityName:
 
 @dataclass(frozen=True)
 class ProjectMatch:
-    """Value object for project matching criteria."""
     project_id: str
 
 
 @dataclass(frozen=True)
 class LabelMatch:
-    """Value object for label matching criteria."""
     label_ids: list[str]

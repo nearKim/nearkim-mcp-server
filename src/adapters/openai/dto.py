@@ -32,7 +32,6 @@ class ClassificationResponse(BaseModel):
 
 
 class EisenhowerCommandBuilder:
-    """Builder for constructing Eisenhower Matrix classification commands."""
 
     EISENHOWER_SYSTEM = """You classify Todoist tasks via the Eisenhower Matrix as Todoist recommends:
 - Q1 = Urgent + Important → do now.
@@ -55,7 +54,6 @@ Output strict JSON: {quadrant, urgent, important, reason}.
     def with_task_context(
         self, task, profile: dict, near_term: dict, *, force_json: bool = False
     ) -> "EisenhowerCommandBuilder":
-        """Add task classification context to the command."""
         user_content = (
             "Classify this Todoist task into Q1..Q4.\n"
             f"Task: {task.content}\nDue: {getattr(task, 'due', None)}\n"
@@ -69,5 +67,4 @@ Output strict JSON: {quadrant, urgent, important, reason}.
         return self
 
     def build(self) -> ClassificationRequest:
-        """Build the final classification request."""
         return ClassificationRequest(model=self.model, input=self._messages)

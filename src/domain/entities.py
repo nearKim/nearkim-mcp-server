@@ -15,7 +15,6 @@ class Task:
 
     @classmethod
     def from_todoist_json(cls, data: dict) -> "Task":
-        """Create a :class:`Task` from the canonical Todoist task payload."""
 
         if "id" not in data:
             raise ValueError("Todoist task JSON must include an 'id' field")
@@ -32,7 +31,6 @@ class Task:
         return task
 
     def due_iso(self) -> Optional[str]:
-        """Return the due datetime in ISO format when available."""
 
         if not self.due:
             return None

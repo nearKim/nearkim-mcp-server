@@ -8,10 +8,10 @@ from src.application.middleware.base import MiddlewarePipeline
 from src.application.commands.classification import ClassifyTaskCommand
 from src.application.middleware.classification import (
     ClassificationHandler,
-    FallbackMiddleware,
     ForcedJsonMiddleware,
     LoggingMiddleware,
 )
+from src.application.middleware.error_handling import ErrorHandlingMiddleware
 from src.domain.exceptions import WebhookValidationException
 from src.domain.models import DecisionRecord
 from src.domain.repositories import DecisionRepository
@@ -30,17 +30,23 @@ class TodoistWebhookService:
         decisions: DecisionRepository,
         *,
         output_mode: str,
+        email_service=None,
         clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
         self.todoist_port = todoist_port
         self.decisions = decisions
         self.output_mode = output_mode
+        self.email_service = email_service
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         
         handler = ClassificationHandler(classifier)
         self.classification_pipeline = (
             MiddlewarePipeline(handler)
-            .use(FallbackMiddleware())
+            .use(ErrorHandlingMiddleware(
+                todoist_adapter=todoist_port,
+                email_service=email_service,
+                error_label="error"
+            ))
             .use(LoggingMiddleware())
             .use(ForcedJsonMiddleware())
         )

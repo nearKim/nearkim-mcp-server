@@ -1,4 +1,3 @@
-"""Profile repository implementation for user context management."""
 
 from __future__ import annotations
 
@@ -11,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class ProfileRepository:
-    """Repository for managing user profile and knowledge base."""
     
     def __init__(self, profile_path: Path, knowledge_path: Path):
         self.profile_path = profile_path
@@ -20,7 +18,6 @@ class ProfileRepository:
         self._knowledge_cache: Optional[Dict[str, Any]] = None
     
     async def load_compact_profile(self) -> Dict[str, Any]:
-        """Load compact user profile for classification context."""
         if self._profile_cache is None:
             await self.refresh()
         
@@ -36,21 +33,18 @@ class ProfileRepository:
         }
     
     async def load_full_profile(self) -> Dict[str, Any]:
-        """Load full user profile."""
         if self._profile_cache is None:
             await self.refresh()
         
         return self._profile_cache or {}
     
     async def load_knowledge(self) -> Dict[str, Any]:
-        """Load knowledge base."""
         if self._knowledge_cache is None:
             await self.refresh()
         
         return self._knowledge_cache or {}
     
     async def refresh(self):
-        """Refresh profile and knowledge from disk."""
         try:
             if self.profile_path.exists():
                 with self.profile_path.open() as f:
@@ -76,7 +70,6 @@ class ProfileRepository:
             self._knowledge_cache = {}
     
     async def save_profile(self, profile: Dict[str, Any]):
-        """Save profile to disk."""
         try:
             self.profile_path.parent.mkdir(parents=True, exist_ok=True)
             with self.profile_path.open('w') as f:
@@ -88,7 +81,6 @@ class ProfileRepository:
             raise
     
     async def save_knowledge(self, knowledge: Dict[str, Any]):
-        """Save knowledge base to disk."""
         try:
             self.knowledge_path.parent.mkdir(parents=True, exist_ok=True)
             with self.knowledge_path.open('w') as f:
@@ -100,7 +92,6 @@ class ProfileRepository:
             raise
     
     def _get_default_profile(self) -> Dict[str, Any]:
-        """Get default profile structure."""
         return {
             "name": "User",
             "role": "",

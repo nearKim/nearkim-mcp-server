@@ -1,4 +1,3 @@
-"""Label service for Todoist operations."""
 
 from __future__ import annotations
 
@@ -9,12 +8,6 @@ from .cache import CacheService
 
 
 class LabelService:
-    """
-    Service for managing Todoist labels.
-    
-    Handles label caching, creation, and ensuring labels exist
-    before they're applied to tasks.
-    """
     
     def __init__(
         self, api: TodoistAPIBase, cache: CacheService, autocreate: bool = False
@@ -24,21 +17,11 @@ class LabelService:
         self.autocreate = autocreate
 
     async def ensure_cache_loaded(self) -> None:
-        """Ensure the label cache is populated from the API."""
         if not self.cache.is_labels_cached():
             labels = await self.api.fetch_labels()
             self.cache.populate_labels(labels)
 
     async def ensure_labels_exist(self, names: Iterable[str]) -> dict[str, str]:
-        """
-        Ensure labels exist, creating them if autocreate is enabled.
-        
-        Args:
-            names: Label names to ensure exist (@ prefix optional)
-            
-        Returns:
-            Dictionary mapping label names to their IDs
-        """
         await self.ensure_cache_loaded()
         label_map: dict[str, str] = {}
         for name in names:

@@ -1,4 +1,3 @@
-"""Main entry point for the Eisenhower MCP server."""
 
 from __future__ import annotations
 
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    """Main server entry point."""
     try:
         config_path = Path("config.yaml")
         if config_path.exists():

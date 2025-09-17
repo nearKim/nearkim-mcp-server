@@ -1,4 +1,3 @@
-"""Configuration management for the application."""
 
 from __future__ import annotations
 
@@ -12,14 +11,12 @@ import yaml
 
 @dataclass
 class TodoistConfig:
-    """Todoist configuration."""
     api_key: str
     webhook_secret: Optional[str] = None
 
 
 @dataclass
 class OpenAIConfig:
-    """OpenAI configuration."""
     api_key: str
     model: str = "gpt-4"
     temperature: float = 0.3
@@ -27,7 +24,6 @@ class OpenAIConfig:
 
 @dataclass
 class GoogleConfig:
-    """Google Calendar configuration."""
     calendar_ids: List[str] = field(default_factory=lambda: ["primary"])
     workday_start: int = 9
     workday_end: int = 17
@@ -35,7 +31,6 @@ class GoogleConfig:
 
 @dataclass
 class ClassificationConfig:
-    """Classification configuration."""
     output: str = "labels"  # "labels" or "priorities"
     default_quadrant: str = "Q4"
     force_json: bool = True
@@ -43,18 +38,28 @@ class ClassificationConfig:
 
 @dataclass
 class IgnoreConfig:
-    """Ignore rules configuration."""
     project_ids: List[str] = field(default_factory=list)
     project_names: List[str] = field(default_factory=list)
     label_names: List[str] = field(default_factory=lambda: ["no-eisenhower"])
 
 
 @dataclass
+class EmailConfig:
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_password: str
+    from_email: str
+    to_email: str
+    enabled: bool = True
+
+
+@dataclass
 class Config:
-    """Application configuration."""
     todoist: TodoistConfig
     openai: OpenAIConfig
     google: Optional[GoogleConfig] = None
+    email: Optional[EmailConfig] = None
     classification: ClassificationConfig = field(default_factory=ClassificationConfig)
     ignore: IgnoreConfig = field(default_factory=IgnoreConfig)
     data_dir: str = "./data"
@@ -62,7 +67,6 @@ class Config:
     
     @classmethod
     def from_yaml(cls, path: Path) -> Config:
-        """Load configuration from YAML file."""
         with path.open() as f:
             data = yaml.safe_load(f)
         
@@ -91,13 +95,21 @@ class Config:
                 project_names=data.get("ignore", {}).get("project_names", []),
                 label_names=data.get("ignore", {}).get("label_names", ["no-eisenhower"])
             ),
+            email=EmailConfig(
+                smtp_host=data["email"]["smtp_host"],
+                smtp_port=data["email"]["smtp_port"],
+                smtp_user=data["email"]["smtp_user"],
+                smtp_password=data["email"]["smtp_password"],
+                from_email=data["email"]["from_email"],
+                to_email=data["email"]["to_email"],
+                enabled=data["email"].get("enabled", True)
+            ) if "email" in data else None,
             data_dir=data.get("data_dir", "./data"),
             log_level=data.get("log_level", "INFO")
         )
     
     @classmethod
     def from_env(cls) -> Config:
-        """Load configuration from environment variables."""
         return cls(
             todoist=TodoistConfig(
                 api_key=os.environ["TODOIST_API_KEY"],
@@ -123,6 +135,15 @@ class Config:
                 project_names=os.getenv("IGNORE_PROJECT_NAMES", "").split(",") if os.getenv("IGNORE_PROJECT_NAMES") else [],
                 label_names=os.getenv("IGNORE_LABEL_NAMES", "no-eisenhower").split(",")
             ),
+            email=EmailConfig(
+                smtp_host=os.environ["SMTP_HOST"],
+                smtp_port=int(os.environ["SMTP_PORT"]),
+                smtp_user=os.environ["SMTP_USER"],
+                smtp_password=os.environ["SMTP_PASSWORD"],
+                from_email=os.environ["FROM_EMAIL"],
+                to_email=os.environ["TO_EMAIL"],
+                enabled=os.getenv("EMAIL_ENABLED", "true").lower() == "true"
+            ) if os.getenv("SMTP_HOST") else None,
             data_dir=os.getenv("DATA_DIR", "./data"),
             log_level=os.getenv("LOG_LEVEL", "INFO")
         )

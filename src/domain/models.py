@@ -64,7 +64,6 @@ class ClassificationDecision:
 
 @dataclass
 class DecisionRecord:
-    # Fields without defaults first
     quadrant: Quadrant
     urgent: bool
     important: bool
@@ -72,7 +71,6 @@ class DecisionRecord:
     todoist_id: str
     applied_mode: typing.Literal["labels", "priorities"]
     updated_at: datetime
-    # Fields with defaults last
     status: DecisionStatus = DecisionStatus.SUCCESS
     error_detail: Optional[str] = None
 
@@ -85,14 +83,13 @@ class DecisionRecord:
         updated_at: datetime | None = None,
     ) -> "DecisionRecord":
         return cls(
-            # Parent class fields
             quadrant=decision.quadrant,
             urgent=decision.urgent,
             important=decision.important,
             reason=decision.reason,
             status=decision.status,
             error_detail=decision.error_detail,
-            # Child class fields  
+  
             todoist_id=todoist_id,
             applied_mode=applied_mode,
             updated_at=updated_at or datetime.now(timezone.utc),

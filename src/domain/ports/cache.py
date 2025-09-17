@@ -8,16 +8,6 @@ from ..value_objects import EntityId, EntityName
 
 
 class EntityCache(ABC):
-    """
-    Port interface for bidirectional entity lookups.
-    
-    This is a domain port that defines the caching capability
-    required by the domain layer. Infrastructure layer must
-    provide implementations of this interface.
-    
-    Uses singledispatch for polymorphic get operations based on
-    query type (EntityId vs EntityName).
-    """
     
     @singledispatchmethod
     @abstractmethod
@@ -27,11 +17,9 @@ class EntityCache(ABC):
     @get.register
     @abstractmethod
     def _(self, query: EntityId) -> Optional[str]:
-        """Get entity name by ID."""
         pass
     
     @get.register
     @abstractmethod
     def _(self, query: EntityName) -> Optional[str]:
-        """Get entity ID by name."""
         pass
