@@ -5,6 +5,7 @@ from todoist_api_python.api_async import TodoistAPIAsync
 from todoist_api_python.models import Label, Project, Task
 
 from src.adapters.todoist.dto import LabelDTO, ProjectDTO, TaskDTO
+from src.application.mappers.todoist_task import task_from_dict
 from src.application.service.todoist import (
     CacheService,
     ClassificationService,
@@ -13,9 +14,11 @@ from src.application.service.todoist import (
     TaskService,
     TodoistAPIBase,
 )
+from src.domain.entities import Task as DomainTask
 from src.domain.services.task_ignore import IgnoreRules
 from src.bootstrap.settings.schemas import TodoistConfig
 from src.domain.models import ClassificationDecision
+from src.ports.todoist import TodoistPort
 
 
 class TodoistAPIAdapter(TodoistAPIBase):
@@ -107,7 +110,7 @@ class TodoistAPIAdapter(TodoistAPIBase):
         )
 
 
-class TodoistAdapter:
+class TodoistAdapter(TodoistPort):
     def __init__(self, cfg: TodoistConfig):
         self.cfg = cfg
 
@@ -140,8 +143,19 @@ class TodoistAdapter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self.cache.clear()
 
-    async def get_task(self, task_id: str) -> TaskDTO:
-        return await self.task_service.get_task(task_id)
+    async def get_task(self, task_id: str) -> DomainTask:
+        task_dto = await self.task_service.get_task(task_id)
+        # Convert DTO to dict then to domain Task
+        task_dict = {
+            "id": task_dto.id,
+            "content": task_dto.content,
+            "description": task_dto.description,
+            "project_id": task_dto.project_id,
+            "labels": task_dto.labels,
+            "priority": task_dto.priority,
+            "due": task_dto.due
+        }
+        return task_from_dict(task_dict)
 
     async def add_labels_to_task(self, task_id: str, label_names: list[str]) -> None:
         label_map = await self.label_service.ensure_labels_exist(label_names)
@@ -167,11 +181,21 @@ class TodoistAdapter:
                 task_id, decision
             )
 
-    async def should_ignore_task(self, task_json: dict) -> bool:
-        return await self.ignore_service.should_ignore(task_json)
+    async def should_ignore_task(self, task: DomainTask) -> bool:
+        # Convert domain Task to dict for the ignore service
+        task_dict = {
+            "id": task.todoist_id,
+            "content": task.content,
+            "project_id": task.project_id,
+            "labels": task.labels,
+            "priority": task.priority,
+            "due": task.due
+        }
+        return await self.ignore_service.should_ignore(task_dict)
     
-    async def fetch_tasks(self, project_id: str = None) -> list[dict]:
-        return await self.api_adapter.fetch_tasks(project_id=project_id)
+    async def fetch_tasks(self, project_id: str = None) -> list[DomainTask]:
+        task_dicts = await self.api_adapter.fetch_tasks(project_id=project_id)
+        return [task_from_dict(task_dict) for task_dict in task_dicts]
     
     async def fetch_labels(self) -> list[LabelDTO]:
         return await self.api_adapter.fetch_labels()
