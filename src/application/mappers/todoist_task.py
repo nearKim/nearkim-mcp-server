@@ -4,7 +4,6 @@ from src.domain.entities import Task
 
 
 def task_from_dict(task_data: Dict[str, Any]) -> Task:
-    """Create a Task entity from a raw dictionary (e.g., from API or webhook)."""
     labels = task_data.get("labels", [])
     if labels is None:
         labels = []
@@ -24,7 +23,6 @@ def task_from_dict(task_data: Dict[str, Any]) -> Task:
 
 
 def task_from_dto(task_dto: Any) -> Task:
-    """Create a Task entity from a TaskDTO or dictionary (for backward compatibility)."""
     if isinstance(task_dto, dict):
         return task_from_dict(task_dto)
     
@@ -39,7 +37,6 @@ def task_from_dto(task_dto: Any) -> Task:
 
 
 def task_to_dict(task: Task) -> Dict[str, Any]:
-    """Convert a Task entity to a dictionary."""
     return {
         "id": task.todoist_id,
         "content": task.content,

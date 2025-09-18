@@ -225,7 +225,6 @@ class GoogleCalendarAdapter(ScheduleSummaryPort):
                 'expiration': expiration,
             }
             
-            # Run blocking Google API call in thread executor
             loop = asyncio.get_event_loop()
             watch_request = self.service.events().watch(
                 calendarId='primary',
@@ -364,17 +363,7 @@ class CalendarService(CalendarSchedulingPort):
             del self._focus_blocks[task_id]
     
     async def cancel_scheduled_task(self, event_id: str) -> bool:
-        """
-        Cancel a previously scheduled task.
-        
-        Args:
-            event_id: The calendar event ID to cancel
-            
-        Returns:
-            True if canceled successfully, False otherwise
-        """
         try:
-            # Find the task_id associated with this event
             task_id = None
             for tid, block in self._focus_blocks.items():
                 if block.event_id == event_id:

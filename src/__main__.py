@@ -4,9 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from pathlib import Path
 
-from src.bootstrap.config import Config
+from src.bootstrap.settings.settings import Settings
 from src.bootstrap.container import Container
 from src.mcp.server import EisenhowerMCPServer
 
@@ -19,17 +18,12 @@ logger = logging.getLogger(__name__)
 
 async def main():
     try:
-        config_path = Path("config.yaml")
-        if config_path.exists():
-            logger.info(f"Loading configuration from {config_path}")
-            config = Config.from_yaml(config_path)
-        else:
-            logger.info("Loading configuration from environment variables")
-            config = Config.from_env()
+        logger.info("Loading configuration from environment variables and .env file")
+        settings = Settings.from_env()
         
-        logging.getLogger().setLevel(config.log_level)
+        logging.getLogger().setLevel(settings.app.log_level)
         
-        container = Container(config)
+        container = Container(settings)
         await container.initialize()
         
         server = EisenhowerMCPServer(container)

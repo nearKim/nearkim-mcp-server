@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
@@ -51,9 +52,41 @@ class TodoistWebhookService:
             .use(ForcedJsonMiddleware())
         )
 
+    def verify_signature(self, payload: bytes, signature: str) -> bool:
+        """Verify webhook signature using HMAC.
+        
+        Args:
+            payload: Raw request body bytes
+            signature: X-Todoist-Hmac-SHA256 header value
+            
+        Returns:
+            True if signature is valid, False otherwise
+        """
+        return self.todoist_port.verify_webhook_signature(payload, signature)
+    
     async def handle(
-        self, event_name: str, payload: Dict[str, Any]
+        self, event_name: str, payload: Dict[str, Any], 
+        raw_payload: Optional[bytes] = None, signature: Optional[str] = None
     ) -> WebhookResponseDTO:
+        """Handle webhook event with optional HMAC verification.
+        
+        Args:
+            event_name: Event type (e.g., 'item:added')
+            payload: Parsed JSON payload
+            raw_payload: Raw request body for signature verification
+            signature: HMAC signature from X-Todoist-Hmac-SHA256 header
+            
+        Returns:
+            WebhookResponseDTO with processing result
+            
+        Raises:
+            WebhookValidationException: If signature verification fails
+        """
+        # Verify signature if provided
+        if raw_payload and signature:
+            if not self.verify_signature(raw_payload, signature):
+                raise WebhookValidationException("Invalid webhook signature")
+        
         try:
             event = WebhookEventDTO.from_payload(event_name, payload)
         except ValueError as e:

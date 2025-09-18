@@ -80,7 +80,6 @@ class EmailService:
             msg.attach(MIMEText(text_body, 'plain'))
             msg.attach(MIMEText(html_body, 'html'))
             
-            # Run blocking SMTP operation in thread executor
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None,
@@ -143,7 +142,6 @@ class EmailService:
             msg['To'] = self.to_email
             msg.attach(MIMEText(html_body, 'html'))
             
-            # Run blocking SMTP operation in thread executor
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None,
@@ -156,7 +154,6 @@ class EmailService:
             logger.error(f"Failed to send batch error summary: {e}")
     
     def _send_email_sync(self, msg: MIMEMultipart) -> None:
-        """Synchronous email sending to be run in thread executor."""
         with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
             server.starttls()
             server.login(self.smtp_user, self.smtp_password)

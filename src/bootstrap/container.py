@@ -12,10 +12,9 @@ from src.adapters.google.calendar import CalendarService, GoogleCalendarAdapter
 from src.adapters.todoist_simple import TodoistAdapter
 from src.application.service.todoist_service import TodoistService
 from src.application.service.webhook import TodoistWebhookService
-from src.bootstrap.config import Config
+from src.bootstrap.settings.settings import Settings
 from src.domain.services.classification import ClassifierService
 from src.domain.services.task_ignore import IgnoreRules, TaskIgnoreService
-from src.infrastructure.llm.openai_adapter import OpenAIAdapter
 from src.infrastructure.notifications.email_service import EmailService
 from src.infrastructure.persistence.decision_repository import SQLiteDecisionRepository
 from src.infrastructure.profile.repository import ProfileRepository
@@ -25,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 class Container:
     
-    def __init__(self, config: Config):
-        self.config = config
+    def __init__(self, settings: Settings):
+        self.settings = settings
         self._todoist_adapter: Optional[TodoistAdapter] = None
         self._calendar_adapter: Optional[GoogleCalendarAdapter] = None
         self._calendar_service: Optional[CalendarService] = None
@@ -36,28 +35,29 @@ class Container:
         self._webhook_service: Optional[TodoistWebhookService] = None
         self._todoist_service: Optional[TodoistService] = None
         self._ignore_service: Optional[TaskIgnoreService] = None
-        self._openai_adapter: Optional[OpenAIAdapter] = None
+        self._openai_adapter = None
         self._email_service: Optional[EmailService] = None
     
     @property
     def todoist_adapter(self) -> TodoistAdapter:
         if self._todoist_adapter is None:
             self._todoist_adapter = TodoistAdapter(
-                api_key=self.config.todoist.api_key,
-                ignore_service=self.ignore_service
+                api_key=self.settings.todoist.token.get_secret_value() if self.settings.todoist.token else "",
+                ignore_service=self.ignore_service,
+                webhook_secret=self.settings.todoist.webhook_secret.get_secret_value() if self.settings.todoist.webhook_secret else None
             )
         return self._todoist_adapter
     
     @property
     def calendar_adapter(self) -> Optional[GoogleCalendarAdapter]:
-        if self._calendar_adapter is None and self.config.google:
+        if self._calendar_adapter is None and self.settings.google_calendar:
             credentials = self._load_google_credentials()
             if credentials:
                 self._calendar_adapter = GoogleCalendarAdapter(
                     credentials=credentials,
-                    calendar_ids=self.config.google.calendar_ids,
-                    workday_start=self.config.google.workday_start,
-                    workday_end=self.config.google.workday_end
+                    calendar_ids=self.settings.google_calendar.calendar_ids,
+                    workday_start=self.settings.scheduling.workday_start_hour,
+                    workday_end=self.settings.scheduling.workday_end_hour
                 )
         return self._calendar_adapter
     
@@ -70,8 +70,8 @@ class Container:
     @property
     def profile_repository(self) -> ProfileRepository:
         if self._profile_repository is None:
-            profile_path = Path(self.config.data_dir) / "profile.json"
-            knowledge_path = Path(self.config.data_dir) / "knowledge.json"
+            profile_path = self.settings.data_dir / "profile.json"
+            knowledge_path = self.settings.data_dir / "knowledge.json"
             self._profile_repository = ProfileRepository(
                 profile_path=profile_path,
                 knowledge_path=knowledge_path
@@ -81,17 +81,16 @@ class Container:
     @property
     def decision_repository(self) -> SQLiteDecisionRepository:
         if self._decision_repository is None:
-            db_path = Path(self.config.data_dir) / "decisions.db"
+            db_path = self.settings.data_dir / "decisions.db"
             self._decision_repository = SQLiteDecisionRepository(db_path)
         return self._decision_repository
     
     @property
-    def openai_adapter(self) -> OpenAIAdapter:
+    def openai_adapter(self):
         if self._openai_adapter is None:
-            self._openai_adapter = OpenAIAdapter(
-                api_key=self.config.openai.api_key,
-                model=self.config.openai.model,
-                temperature=self.config.openai.temperature
+            from src.adapters.openai.adapter import OpenAIAdapter as OpenAIAdapterImpl
+            self._openai_adapter = OpenAIAdapterImpl(
+                cfg=self.settings.openai
             )
         return self._openai_adapter
     
@@ -100,11 +99,10 @@ class Container:
     def ignore_service(self) -> TaskIgnoreService:
         if self._ignore_service is None:
             ignore_rules = IgnoreRules(
-                project_ids=set(self.config.ignore.project_ids),
-                project_names=set(self.config.ignore.project_names),
-                label_names=set(self.config.ignore.label_names)
+                project_ids=set(self.settings.todoist.ignore.project_ids),
+                project_names=set(self.settings.todoist.ignore.projects_by_name),
+                label_names=set(self.settings.todoist.ignore.labels_by_name)
             )
-            # TaskIgnoreService now just uses the rules directly
             self._ignore_service = TaskIgnoreService(
                 ignore_rules=ignore_rules
             )
@@ -112,15 +110,15 @@ class Container:
     
     @property
     def email_service(self) -> Optional[EmailService]:
-        if self._email_service is None and self.config.email:
+        if self._email_service is None and self.settings.email:
             self._email_service = EmailService(
-                smtp_host=self.config.email.smtp_host,
-                smtp_port=self.config.email.smtp_port,
-                smtp_user=self.config.email.smtp_user,
-                smtp_password=self.config.email.smtp_password,
-                from_email=self.config.email.from_email,
-                to_email=self.config.email.to_email,
-                enabled=self.config.email.enabled
+                smtp_host=self.settings.email.smtp_host,
+                smtp_port=self.settings.email.smtp_port,
+                smtp_user=self.settings.email.smtp_user,
+                smtp_password=self.settings.email.smtp_password,
+                from_email=self.settings.email.from_email,
+                to_email=self.settings.email.to_email,
+                enabled=self.settings.email.enabled
             )
         return self._email_service
     
@@ -141,7 +139,7 @@ class Container:
                 todoist_port=self.todoist_adapter,
                 classifier=self.classifier_service,
                 decisions=self.decision_repository,
-                output_mode=self.config.classification.output,
+                output_mode=self.settings.todoist.classification.output,
                 email_service=self.email_service
             )
         return self._webhook_service
@@ -153,7 +151,7 @@ class Container:
                 adapter=self.todoist_adapter,
                 classifier=self.classifier_service,
                 decision_repository=self.decision_repository,
-                output_mode=self.config.classification.output,
+                output_mode=self.settings.todoist.classification.output,
                 calendar_service=self.calendar_service
             )
         return self._todoist_service
@@ -180,7 +178,7 @@ class Container:
     
     def _load_google_credentials(self) -> Optional[Credentials]:
         try:
-            token_path = Path(self.config.data_dir) / "google_token.json"
+            token_path = self.settings.data_dir / "google_token.json"
             if token_path.exists():
                 return Credentials.from_authorized_user_file(str(token_path))
             

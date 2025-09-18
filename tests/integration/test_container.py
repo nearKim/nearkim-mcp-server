@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 import tempfile
 import os
 from pathlib import Path
+from pydantic import SecretStr
 
-from src.bootstrap.config import Config
+from src.bootstrap.settings.settings import Settings
+from src.bootstrap.settings.schemas import TodoistConfig, OpenAIConfig
 from src.bootstrap.container import Container
 
 
@@ -16,27 +18,36 @@ class TestContainerWiring:
     """Test that the container properly wires services."""
     
     @pytest.fixture
-    def test_config(self):
-        """Create a test configuration."""
+    def test_settings(self):
+        """Create a test settings object."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = Config()
-            config.data_dir = tmpdir
-            config.todoist.api_key = "test_key"
-            config.classification.output = "labels"
-            config.ignore.project_ids = []
-            config.ignore.project_names = []
-            config.ignore.label_names = []
-            yield config
+            settings = Settings(
+                data_dir=Path(tmpdir),
+                todoist=TodoistConfig(
+                    token=SecretStr("test_key"),
+                    classification=TodoistConfig.ClassificationConfig(output="labels"),
+                    ignore=TodoistConfig.IgnoreRulesConfig(
+                        project_ids=[],
+                        projects_by_name=[],
+                        labels_by_name=[]
+                    )
+                ),
+                openai=OpenAIConfig(
+                    api_key=SecretStr("test_openai_key"),
+                    model="gpt-4"
+                )
+            )
+            yield settings
     
-    def test_container_instantiation(self, test_config):
+    def test_container_instantiation(self, test_settings):
         """Test that container can be instantiated."""
-        container = Container(test_config)
+        container = Container(test_settings)
         assert container is not None
-        assert container.config == test_config
+        assert container.settings == test_settings
     
-    def test_todoist_adapter_resolution(self, test_config):
+    def test_todoist_adapter_resolution(self, test_settings):
         """Test that todoist_adapter can be resolved."""
-        container = Container(test_config)
+        container = Container(test_settings)
         adapter = container.todoist_adapter
         
         assert adapter is not None
@@ -47,25 +58,25 @@ class TestContainerWiring:
         from src.ports.todoist import TodoistPort
         assert isinstance(adapter, TodoistPort)
     
-    def test_webhook_service_resolution(self, test_config):
+    def test_webhook_service_resolution(self, test_settings):
         """Test that webhook_service can be resolved with correct parameters."""
-        container = Container(test_config)
+        container = Container(test_settings)
         
         # Mock email service to avoid SMTP configuration
-        with patch.object(container, 'email_service', return_value=None):
-            webhook_service = container.webhook_service
-            
-            assert webhook_service is not None
-            from src.application.service.webhook import TodoistWebhookService
-            assert isinstance(webhook_service, TodoistWebhookService)
-            
-            # Check that dependencies were properly injected
-            assert webhook_service.todoist_port is container.todoist_adapter
-            assert webhook_service.output_mode == "labels"
+        container._email_service = None  # Set to None to skip SMTP requirements
+        webhook_service = container.webhook_service
+        
+        assert webhook_service is not None
+        from src.application.service.webhook import TodoistWebhookService
+        assert isinstance(webhook_service, TodoistWebhookService)
+        
+        # Check that dependencies were properly injected
+        assert webhook_service.todoist_port is container.todoist_adapter
+        assert webhook_service.output_mode == "labels"
     
-    def test_todoist_service_resolution(self, test_config):
+    def test_todoist_service_resolution(self, test_settings):
         """Test that todoist_service can be resolved with correct parameters."""
-        container = Container(test_config)
+        container = Container(test_settings)
         
         todoist_service = container.todoist_service
         
@@ -79,9 +90,9 @@ class TestContainerWiring:
         assert todoist_service.decision_repository is container.decision_repository
         assert todoist_service.output_mode == "labels"
     
-    def test_classifier_service_uses_ports(self, test_config):
+    def test_classifier_service_uses_ports(self, test_settings):
         """Test that classifier service uses port interfaces."""
-        container = Container(test_config)
+        container = Container(test_settings)
         
         classifier = container.classifier_service
         
@@ -98,9 +109,9 @@ class TestContainerWiring:
         # calendar_adapter implements ScheduleSummaryPort
         assert hasattr(classifier, 'schedule_port')
     
-    def test_decision_repository_initialization(self, test_config):
+    def test_decision_repository_initialization(self, test_settings):
         """Test that decision repository can be initialized."""
-        container = Container(test_config)
+        container = Container(test_settings)
         
         repo = container.decision_repository
         
@@ -109,12 +120,12 @@ class TestContainerWiring:
         assert isinstance(repo, SQLiteDecisionRepository)
         
         # Check that the database path is correct
-        expected_path = Path(test_config.data_dir) / "decisions.db"
+        expected_path = Path(test_settings.data_dir) / "decisions.db"
         assert repo.db_path == expected_path
     
-    def test_ignore_service_configuration(self, test_config):
+    def test_ignore_service_configuration(self, test_settings):
         """Test that ignore service is properly configured."""
-        container = Container(test_config)
+        container = Container(test_settings)
         
         ignore_service = container.ignore_service
         
@@ -128,9 +139,9 @@ class TestContainerWiring:
         assert ignore_service.ignore_rules.label_names == set()
     
     @pytest.mark.asyncio
-    async def test_container_initialization(self, test_config):
+    async def test_container_initialization(self, test_settings):
         """Test that container can be initialized without errors."""
-        container = Container(test_config)
+        container = Container(test_settings)
         
         # Mock services that require external connections
         container._calendar_adapter = None  # Skip Google calendar

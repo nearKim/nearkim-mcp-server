@@ -49,13 +49,7 @@ class TodoistService:
                 decision = await self.classifier.classify(task)
                 
                 await self.adapter.apply_eisenhower(task.todoist_id, decision)
-                
-                record = DecisionRecord.from_decision(
-                    todoist_id=task.todoist_id,
-                    decision=decision,
-                    applied_mode=self.output_mode
-                )
-                await self.decision_repository.save(record)
+                await self.save_decision(task.todoist_id, decision)
                 
                 if decision.quadrant == "Q2" and self.calendar_service:
                     scheduled = await self._schedule_q2_task(task, decision)
@@ -70,19 +64,21 @@ class TodoistService:
         
         return results
     
-    async def reclassify_task(self, task_id: str) -> ClassificationDecision:
-        task = await self.adapter.get_task(task_id)
-        
-        decision = await self.classifier.classify(task, force_json=True)
-        
-        await self.adapter.apply_eisenhower(task_id, decision)
-        
+    async def save_decision(self, task_id: str, decision: ClassificationDecision) -> None:
         record = DecisionRecord.from_decision(
             todoist_id=task_id,
             decision=decision,
             applied_mode=self.output_mode
         )
         await self.decision_repository.save(record)
+    
+    async def reclassify_task(self, task_id: str) -> ClassificationDecision:
+        task = await self.adapter.get_task(task_id)
+        
+        decision = await self.classifier.classify(task, force_json=True)
+        
+        await self.adapter.apply_eisenhower(task_id, decision)
+        await self.save_decision(task_id, decision)
         
         if decision.quadrant == "Q2" and self.calendar_service:
             await self._schedule_q2_task(task, decision)
