@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import List, Literal
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 class TodoistConfig(BaseModel):
@@ -49,3 +49,13 @@ class AppConfig(BaseModel):
     env: Literal["local", "dev", "prod"] = "local"
     timezone: str = "America/New_York"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+
+class EmailConfig(BaseModel):
+    smtp_host: str
+    smtp_port: int = Field(gt=0, le=65535)
+    smtp_user: str
+    smtp_password: SecretStr
+    from_email: str
+    to_email: str
+    enabled: bool = True

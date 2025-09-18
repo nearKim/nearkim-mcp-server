@@ -9,33 +9,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .schemas import (
     AppConfig,
+    EmailConfig,
     GoogleCalendarConfig,
     OpenAIConfig,
     SchedulingConfig,
     TodoistConfig,
 )
-
-
-class EmailConfig:
-    def __init__(
-        self,
-        smtp_host: Optional[str] = None,
-        smtp_port: Optional[int] = None,
-        smtp_user: Optional[str] = None,
-        smtp_password: Optional[str] = None,
-        from_email: Optional[str] = None,
-        to_email: Optional[str] = None,
-        enabled: bool = True
-    ):
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
-        self.smtp_user = smtp_user
-        self.smtp_password = smtp_password
-        self.from_email = from_email
-        self.to_email = to_email
-        self.enabled = enabled and all([
-            smtp_host, smtp_port, smtp_user, smtp_password, from_email, to_email
-        ])
 
 
 class Settings(BaseSettings):
@@ -71,7 +50,7 @@ class Settings(BaseSettings):
                 smtp_host=os.environ["EMAIL_SMTP_HOST"],
                 smtp_port=int(os.environ["EMAIL_SMTP_PORT"]),
                 smtp_user=os.environ["EMAIL_SMTP_USER"],
-                smtp_password=os.environ["EMAIL_SMTP_PASSWORD"],
+                smtp_password=SecretStr(os.environ["EMAIL_SMTP_PASSWORD"]),
                 from_email=os.environ["EMAIL_FROM"],
                 to_email=os.environ["EMAIL_TO"],
                 enabled=os.getenv("EMAIL_ENABLED", "true").lower() == "true"

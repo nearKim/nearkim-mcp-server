@@ -115,7 +115,7 @@ class Container:
                 smtp_host=self.settings.email.smtp_host,
                 smtp_port=self.settings.email.smtp_port,
                 smtp_user=self.settings.email.smtp_user,
-                smtp_password=self.settings.email.smtp_password,
+                smtp_password=self.settings.email.smtp_password.get_secret_value(),
                 from_email=self.settings.email.from_email,
                 to_email=self.settings.email.to_email,
                 enabled=self.settings.email.enabled
